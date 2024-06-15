@@ -12,9 +12,22 @@ const { title } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="description" content="Astro description" />
     <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      href="ollama_light.svg"
+      rel="icon"
+      type="image/svg+xml"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      href="ollama_dark.svg"
+      rel="icon"
+      type="image/svg+xml"
+      media="(prefers-color-scheme: dark)"
+    />
+
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    <meta property="og:image" content="/ai-chat.webp" />
   </head>
   <body>
     <slot />
