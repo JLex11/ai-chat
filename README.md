@@ -1,4 +1,4 @@
-# Astro Starter Kit: Basics
+# AI Chat - Your AI Chat that run on local
 
 ```sh
 npm create astro@latest -- --template basics
@@ -8,7 +8,7 @@ npm create astro@latest -- --template basics
 [![Open with CodeSandbox](https://assets.codesandbox.io/github/button-edit-lime.svg)](https://codesandbox.io/p/sandbox/github/withastro/astro/tree/latest/examples/basics)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/withastro/astro?devcontainer_path=.devcontainer/basics/devcontainer.json)
 
-![just-the-basics](https://github.com/withastro/astro/assets/2244813/a0a5533c-a856-4198-8470-2d67b1d7c554)
+![ai-chat](https://github.com/JLex11/ai-chat/assets/93395794/3315efd5-8451-4549-9014-e7e903767d2d)
 
 ## 🚀 Project Structure
 
