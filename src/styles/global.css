@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@plugin "@tailwindcss/typography";
+
+@plugin "tailwind-scrollbar" {
+  nocompatible: true;
+}
+
+@layer base {
+  body {
+    @apply text-slate-200;
+  }
+}

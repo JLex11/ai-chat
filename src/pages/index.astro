@@ -1,167 +1,417 @@
 ---
-import Card from '../components/Card.astro'
-import Layout from '../layouts/Layout.astro'
+import ChatContainer from '../components/chat/ChatContainer.astro'
+import Sidebar from '../components/sidebar/Sidebar.astro'
+import LoadingOverlay from '../components/ui/LoadingOverlay.astro'
+import ChatLayout from '../layouts/ChatLayout.astro'
 ---
 
-<Layout title='AI Chat - An AI chat without external APIs'>
-  <main class='h-dvh p-4'>
-    <header class='flex flex-col items-center justify-center h-1/6'>
-      <h1
-        class='text-4xl font-bold bg-gradient-to-r from-red-600 via-violet-900 to-indigo-500 text-transparent bg-clip-text'
-      >
-        AI Chat
-      </h1>
-      <p class='text-base opacity-[0.7]'>Chat con IA que corre en local</p>
-    </header>
-    <Card>
-      <ul
-        id='messages'
-        class='h-max overflow-auto scrollbar scrollbar-thumb-slate-700 scrollbar-thumb-rounded-full scrollbar-track-rounded-full scrollbar-w-[10px] gap-2 scroll-smooth'
-      >
-        <li
-          class='p-2 border border-slate-600 border-none'
-          data-message-type='bot'
-        >
-          <span
-            class='group-data-[message-type=user]:text-red-500 text-blue-500 font-bold'
-            >GPT</span
-          >
-          <p class='text-slate-400 text-base'>
-            Hola, soy un asistente de IA que puede responder preguntas y
-            proporcionar información sobre una amplia variedad de temas. ¿En qué
-            puedo ayudarte hoy?
-          </p>
-        </li>
-      </ul>
-      <form
-        action=''
-        data-model-status=''
-        class='h-14 w-full p-2 border border-slate-600 rounded-md flex justify-between items-center gap-2 relative text-lg'
-      >
-        <input
-          placeholder='Escribe aquí tu mensaje'
-          class='w-full bg-transparent select-none focus:outline-none'
-        />
-        <button
-          type='submit'
-          disabled
-          class='bg-slate-600 bg-opacity-[0.6] text-white p-1 rounded-md px-2 disabled:opacity-50 transition-opacity'
-        >
-          Enviar
-        </button>
-      </form>
-
-      <template id='message-template'>
-        <li
-          class='p-2 border border-slate-600 border-none group'
-          data-message-type=''
-        >
-          <span
-            class='group-data-[message-type=user]:text-red-500 text-blue-500 font-bold'
-          ></span>
-          <p class='text-slate-400 text-base'>
-            <div></div>
-          </p>
-        </li>
-      </template>
-    </Card>
-  </main>
-</Layout>
-
-<style>
-  main {
-    margin: 0 auto;
-    width: 800px;
-    max-width: calc(100% - 2rem);
-    color: white;
-    font-size: 20px;
-  }
-
-  form::after {
-    content: attr(data-model-status);
-    position: absolute;
-    top: -2.5rem;
-    right: 0;
-    color: white;
-    opacity: 0.5;
-    font-size: 0.8rem;
-  }
-</style>
+<ChatLayout title='AI Chat - Chat con IA local y privada'>
+  <Sidebar slot='sidebar' />
+  <div slot='content' class='flex flex-col h-full'>
+    <ChatContainer />
+  </div>
+  <LoadingOverlay />
+</ChatLayout>
 
 <script>
-  import { CreateWebWorkerMLCEngine } from '@mlc-ai/web-llm'
+  import { initChat, sendMessage, switchModel, getCurrentModelId } from '../scripts/chat/engine'
+  import { renderMarkdown, initMarkdown } from '../scripts/utils/markdown'
+  import { getSelectedModel, setSelectedModel, getSelectedPrompt, setSelectedPrompt } from '../scripts/storage/preferences'
+  import {
+    loadConversations,
+    saveConversation,
+    deleteConversation,
+    createConversation,
+    updateConversationTitle,
+    addMessageToConversation,
+    getCurrentConversationId,
+    setCurrentConversationId,
+    getConversation,
+  } from '../scripts/storage/conversations'
+  import { getModelById } from '../scripts/config/models'
+  import type { Conversation, Message } from '../scripts/chat/types'
 
-  const msgType = { user: 'Tú', bot: 'GPT' } as const
-  const $ = (e: string) => document.querySelector(e)
+  // DOM Elements
+  const $loadingOverlay = document.getElementById('loading-overlay')!
+  const $loadingModelName = document.getElementById('loading-model-name')!
+  const $progressBar = document.getElementById('progress-bar')!
+  const $progressText = document.getElementById('progress-text')!
+  const $progressStatus = document.getElementById('progress-status')!
 
-  const $messages = $('#messages')! as HTMLUListElement
-  const $form = $('form')! as HTMLFormElement
-  const $input = $form!.querySelector('input')! as HTMLInputElement
-  const $sendButton = $form!.querySelector('button')! as HTMLButtonElement
-  const $template = $('#message-template')! as HTMLTemplateElement
+  const $form = document.getElementById('chat-form') as HTMLFormElement
+  const $input = document.getElementById('message-input') as HTMLTextAreaElement
+  const $sendBtn = document.getElementById('send-btn') as HTMLButtonElement
+  const $sendText = document.getElementById('send-text')!
+  const $modelStatus = document.getElementById('model-status')!
+  const $modelSelect = document.getElementById('model-select') as HTMLSelectElement
+  const $promptSelect = document.getElementById('prompt-select') as HTMLSelectElement
 
-  // const SELECTED_MODEL = "Llama-3-8B-Instruct-q4f16_1-MLC-1k";
-  const SELECTED_MODEL = 'gemma-2b-it-q4f32_1-MLC'
-  const messages = [] as { role: 'user' | 'assistant'; content: string }[]
+  const $messageList = document.getElementById('message-list')!
+  const $messages = document.getElementById('messages')!
+  const $emptyState = document.getElementById('empty-state')!
+  const $typingIndicator = document.getElementById('typing-indicator')!
 
-  const engine = await CreateWebWorkerMLCEngine(
-    new Worker(new URL('../scripts/worker.ts', import.meta.url), {
-      type: 'module',
-    }),
-    SELECTED_MODEL,
-    {
-      initProgressCallback: info => {
-        $form.dataset.modelStatus = info.text
-        if (info.progress === 1) $sendButton.removeAttribute('disabled')
-      },
-    },
-  )
-  $form.dataset.modelStatus = ''
+  const $sidebar = document.getElementById('sidebar')!
+  const $sidebarOverlay = document.getElementById('sidebar-overlay')!
+  const $toggleSidebar = document.getElementById('toggle-sidebar')!
+  const $closeSidebar = document.getElementById('close-sidebar')!
+  const $conversationsList = document.getElementById('conversations-list')!
+  const $noConversations = document.getElementById('no-conversations')!
 
-  $form.addEventListener('submit', async e => {
-    e.preventDefault()
-    const messageText = $input.value.trim()
-    if (!messageText) return
-    $form.reset()
+  const $newChatBtn = document.getElementById('new-chat-btn')!
+  const $newChatSidebar = document.getElementById('new-chat-sidebar')!
 
-    addMessage(messageText, 'user')
-    $sendButton.setAttribute('disabled', 'true')
-    $sendButton.textContent = 'Respondiendo...'
+  // State
+  let currentConversation: Conversation | null = null
+  let chatMessages: Message[] = []
+  let isGenerating = false
 
-    messages.push({ role: 'user', content: messageText })
+  // Initialize
+  async function init() {
+    await initMarkdown()
+    const savedModel = getSelectedModel()
+    $modelSelect.value = savedModel
 
-    const replyChunks = await engine.chat.completions.create({
-      messages: messages,
-      stream: true,
-    })
-
-    let replyText = ''
-    const $messageText = addMessage('', 'bot')
-
-    for await (const chunk of replyChunks) {
-      replyText += chunk.choices[0]?.delta?.content ?? ''
-      $messageText.textContent = replyText
-      $messages.scrollTop = $messages.scrollHeight
+    const savedPrompt = getSelectedPrompt()
+    if ($promptSelect) {
+      $promptSelect.value = savedPrompt
     }
 
-    messages.push({ role: 'assistant', content: replyText })
-    $sendButton.removeAttribute('disabled')
-    $sendButton.textContent = 'Enviar'
+    const modelConfig = getModelById(savedModel)
+    if (modelConfig) {
+      $loadingModelName.textContent = `${modelConfig.name} (${modelConfig.size})`
+    }
+
+    // Always load/create conversation first
+    const savedConversationId = getCurrentConversationId()
+    if (savedConversationId) {
+      const conv = getConversation(savedConversationId)
+      if (conv) {
+        loadConversation(conv)
+      } else {
+        startNewConversation()
+      }
+    } else {
+      startNewConversation()
+    }
+    renderConversationsList()
+
+    showLoadingOverlay()
+
+    try {
+      await initChat(onProgress)
+      hideLoadingOverlay()
+      $sendBtn.disabled = false
+      $modelStatus.textContent = 'Modelo listo'
+    } catch (error) {
+      console.error('Error initializing chat:', error)
+      hideLoadingOverlay()
+      $sendBtn.disabled = true
+      $modelStatus.textContent = 'Error al cargar modelo. Intenta otro modelo.'
+    }
+  }
+
+  function onProgress(info: { text: string; progress: number }) {
+    const percent = Math.round(info.progress * 100)
+    $progressBar.style.width = `${percent}%`
+    $progressText.textContent = `${percent}%`
+    $progressStatus.textContent = info.text
+  }
+
+  function showLoadingOverlay() {
+    $loadingOverlay.classList.remove('hidden')
+  }
+
+  function hideLoadingOverlay() {
+    $loadingOverlay.classList.add('hidden')
+  }
+
+  // Sidebar
+  function toggleSidebar() {
+    $sidebar.classList.toggle('-translate-x-full')
+    $sidebarOverlay.classList.toggle('hidden')
+  }
+
+  function closeSidebar() {
+    $sidebar.classList.add('-translate-x-full')
+    $sidebarOverlay.classList.add('hidden')
+  }
+
+  $toggleSidebar?.addEventListener('click', toggleSidebar)
+  $closeSidebar?.addEventListener('click', closeSidebar)
+  $sidebarOverlay?.addEventListener('click', closeSidebar)
+
+  // Conversations
+  function startNewConversation() {
+    const modelId = getCurrentModelId() ?? getSelectedModel()
+    currentConversation = createConversation(modelId)
+    chatMessages = []
+    setCurrentConversationId(currentConversation.id)
+    renderMessages()
+    renderConversationsList()
+    closeSidebar()
+  }
+
+  function loadConversation(conv: Conversation) {
+    currentConversation = conv
+    chatMessages = conv.messages.filter(m => m.role !== 'system')
+    setCurrentConversationId(conv.id)
+    renderMessages()
+    renderConversationsList()
+    closeSidebar()
+  }
+
+  function renderMessages() {
+    $messageList.innerHTML = ''
+
+    if (chatMessages.length === 0) {
+      $emptyState.classList.remove('hidden')
+    } else {
+      $emptyState.classList.add('hidden')
+
+      chatMessages.forEach(msg => {
+        if (msg.role === 'system') return
+        addMessageToDOM(msg.content, msg.role as 'user' | 'assistant', msg.timestamp)
+      })
+    }
+
+    scrollToBottom()
+  }
+
+  function addMessageToDOM(content: string, role: 'user' | 'assistant', timestamp?: number) {
+    $emptyState.classList.add('hidden')
+
+    const li = document.createElement('li')
+    li.className = `message group flex gap-3 p-4 rounded-lg transition-colors ${role === 'assistant' ? 'bg-slate-800/50' : ''}`
+    li.dataset.role = role
+
+    const isUser = role === 'user'
+    const avatarText = isUser ? 'Tú' : 'IA'
+    const avatarBg = isUser ? 'bg-emerald-600' : 'bg-blue-600'
+    const nameText = isUser ? 'Tú' : 'Asistente'
+    const nameColor = isUser ? 'text-emerald-400' : 'text-blue-400'
+
+    const time = timestamp ? new Date(timestamp).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
+
+    const renderedContent = role === 'assistant' ? renderMarkdown(content) : escapeHtml(content)
+
+    li.innerHTML = `
+      <div class="avatar w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${avatarBg}">
+        ${avatarText}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="font-semibold text-sm ${nameColor}">${nameText}</span>
+          ${time ? `<span class="text-xs text-slate-500">${time}</span>` : ''}
+        </div>
+        <div class="message-content prose prose-invert prose-sm max-w-none">
+          ${renderedContent}
+        </div>
+      </div>
+      <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-start gap-1">
+        <button type="button" class="copy-btn p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors" title="Copiar">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </button>
+      </div>
+    `
+
+    // Copy button handler
+    const copyBtn = li.querySelector('.copy-btn')
+    copyBtn?.addEventListener('click', () => {
+      navigator.clipboard.writeText(content)
+    })
+
+    $messageList.appendChild(li)
+    return li.querySelector('.message-content')!
+  }
+
+  function escapeHtml(text: string): string {
+    const div = document.createElement('div')
+    div.textContent = text
+    return div.innerHTML.replace(/\n/g, '<br>')
+  }
+
+  function scrollToBottom() {
+    $messages.scrollTop = $messages.scrollHeight
+  }
+
+  function renderConversationsList() {
+    const conversations = loadConversations()
+    $conversationsList.innerHTML = ''
+
+    if (conversations.length === 0) {
+      $noConversations.classList.remove('hidden')
+    } else {
+      $noConversations.classList.add('hidden')
+
+      conversations.forEach(conv => {
+        const isActive = currentConversation?.id === conv.id
+        const li = document.createElement('li')
+        li.className = `conversation-item group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-slate-700' : 'hover:bg-slate-800'}`
+        li.dataset.id = conv.id
+
+        const relativeTime = formatRelativeTime(conv.updatedAt)
+
+        li.innerHTML = `
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-white truncate">${conv.title}</p>
+            <p class="text-xs text-slate-500">${relativeTime}</p>
+          </div>
+          <button type="button" class="delete-conversation opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-400 hover:bg-red-900/30 rounded transition-all" title="Eliminar">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        `
+
+        // Load conversation on click
+        li.addEventListener('click', e => {
+          if ((e.target as HTMLElement).closest('.delete-conversation')) return
+          loadConversation(conv)
+        })
+
+        // Delete button
+        const deleteBtn = li.querySelector('.delete-conversation')
+        deleteBtn?.addEventListener('click', e => {
+          e.stopPropagation()
+          deleteConversation(conv.id)
+          if (currentConversation?.id === conv.id) {
+            startNewConversation()
+          }
+          renderConversationsList()
+        })
+
+        $conversationsList.appendChild(li)
+      })
+    }
+  }
+
+  function formatRelativeTime(timestamp: number): string {
+    const now = Date.now()
+    const diff = now - timestamp
+    const minutes = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days = Math.floor(diff / 86400000)
+
+    if (minutes < 1) return 'Ahora'
+    if (minutes < 60) return `${minutes}m`
+    if (hours < 24) return `${hours}h`
+    if (days < 7) return `${days}d`
+    return new Date(timestamp).toLocaleDateString('es', { month: 'short', day: 'numeric' })
+  }
+
+  // Form submission
+  $form.addEventListener('submit', async e => {
+    e.preventDefault()
+    if (isGenerating) return
+    if (!currentConversation) {
+      $modelStatus.textContent = 'No hay conversación activa'
+      return
+    }
+    if (!getCurrentModelId()) {
+      $modelStatus.textContent = 'Modelo no cargado. Selecciona otro modelo.'
+      return
+    }
+
+    const messageText = $input.value.trim()
+    if (!messageText) return
+
+    $input.value = ''
+    $input.style.height = 'auto'
+
+    // Add user message
+    const userMessage = addMessageToConversation(currentConversation!, 'user', messageText)
+    chatMessages.push(userMessage)
+    addMessageToDOM(messageText, 'user', userMessage.timestamp)
+    scrollToBottom()
+
+    // Update title if first message
+    currentConversation = updateConversationTitle(currentConversation!)
+    saveConversation(currentConversation!)
+    renderConversationsList()
+
+    // Show typing indicator
+    isGenerating = true
+    $sendBtn.disabled = true
+    $sendText.textContent = 'Generando...'
+    $typingIndicator.classList.remove('hidden')
+    scrollToBottom()
+
+    try {
+      // Create placeholder for assistant message
+      const $assistantContent = addMessageToDOM('', 'assistant', Date.now())
+      $typingIndicator.classList.add('hidden')
+
+      // Send message and stream response
+      const response = await sendMessage(chatMessages, text => {
+        $assistantContent.innerHTML = renderMarkdown(text)
+        scrollToBottom()
+      })
+
+      // Save assistant message
+      const assistantMessage = addMessageToConversation(currentConversation!, 'assistant', response)
+      chatMessages.push(assistantMessage)
+      saveConversation(currentConversation!)
+    } catch (error) {
+      console.error('Error sending message:', error)
+      $typingIndicator.classList.add('hidden')
+
+      // Show error message
+      const errorMessage = addMessageToConversation(
+        currentConversation!,
+        'assistant',
+        'Lo siento, hubo un error al procesar tu mensaje. Por favor, intenta de nuevo.',
+      )
+      chatMessages.push(errorMessage)
+      addMessageToDOM(errorMessage.content, 'assistant', errorMessage.timestamp)
+      saveConversation(currentConversation!)
+    } finally {
+      isGenerating = false
+      $sendBtn.disabled = false
+      $sendText.textContent = 'Enviar'
+    }
   })
 
-  function addMessage(messageText: string, sender: keyof typeof msgType) {
-    const $clonedTemplate = $template.content.cloneNode(
-      true,
-    ) as HTMLTemplateElement
-    const $message = $clonedTemplate.firstElementChild as HTMLLIElement
+  // Model change
+  $modelSelect.addEventListener('change', async () => {
+    const newModelId = $modelSelect.value
+    if (newModelId === getCurrentModelId()) return
 
-    $message.dataset.messageType = sender
-    $message.querySelector('span')!.textContent = msgType[sender]
-    $message.querySelector('div')!.textContent = messageText
+    setSelectedModel(newModelId)
 
-    $messages.appendChild($message)
-    $messages.scrollTop = $messages.scrollHeight
+    const modelConfig = getModelById(newModelId)
+    if (modelConfig) {
+      $loadingModelName.textContent = `${modelConfig.name} (${modelConfig.size})`
+    }
 
-    return $message.querySelector('div')!
-  }
+    showLoadingOverlay()
+    $sendBtn.disabled = true
+    $modelStatus.textContent = 'Cambiando modelo...'
+
+    try {
+      await switchModel(newModelId, onProgress)
+      hideLoadingOverlay()
+      $sendBtn.disabled = false
+      $modelStatus.textContent = 'Modelo listo'
+    } catch (error) {
+      console.error('Error switching model:', error)
+      hideLoadingOverlay()
+      $modelStatus.textContent = 'Error al cambiar modelo'
+    }
+  })
+
+  // Prompt change
+  $promptSelect?.addEventListener('change', () => {
+    const newPromptId = $promptSelect.value
+    setSelectedPrompt(newPromptId)
+  })
+
+  // New chat buttons
+  $newChatBtn.addEventListener('click', startNewConversation)
+  $newChatSidebar.addEventListener('click', startNewConversation)
+
+  // Start
+  init()
 </script>

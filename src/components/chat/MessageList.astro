@@ -1,0 +1,31 @@
+---
+import MessageItem from './MessageItem.astro'
+---
+
+<div
+  id="messages"
+  class="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
+>
+  <div id="empty-state" class="flex flex-col items-center justify-center h-full text-center">
+    <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
+      <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+        />
+      </svg>
+    </div>
+    <h3 class="text-lg font-semibold text-slate-300 mb-2">Comienza una conversación</h3>
+    <p class="text-slate-500 text-sm max-w-sm">
+      Escribe un mensaje para comenzar a chatear con la IA. Todo el procesamiento es local y privado.
+    </p>
+  </div>
+
+  <ul id="message-list" class="space-y-2"></ul>
+</div>
+
+<template id="message-template">
+  <MessageItem role="user" isTemplate />
+</template>

@@ -1,0 +1,42 @@
+---
+import ConversationList from './ConversationList.astro'
+import Button from '../ui/Button.astro'
+import IconButton from '../ui/IconButton.astro'
+---
+
+<aside
+  id="sidebar"
+  class="fixed inset-y-0 left-0 z-40 w-72 bg-slate-850 border-r border-slate-700 flex flex-col transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-300 ease-in-out"
+  style="background-color: rgb(17, 24, 39)"
+>
+  <div class="flex items-center justify-between p-4 border-b border-slate-700">
+    <h2 class="font-semibold text-white">Conversaciones</h2>
+    <IconButton id="close-sidebar" title="Cerrar" class="lg:hidden">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </IconButton>
+  </div>
+
+  <div class="p-3">
+    <Button id="new-chat-sidebar" variant="secondary" class="w-full justify-center">
+      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+      </svg>
+      Nueva conversación
+    </Button>
+  </div>
+
+  <ConversationList />
+
+  <div class="p-3 border-t border-slate-700">
+    <p class="text-xs text-slate-500 text-center">
+      Todo se ejecuta localmente
+    </p>
+  </div>
+</aside>
+
+<div
+  id="sidebar-overlay"
+  class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden"
+></div>

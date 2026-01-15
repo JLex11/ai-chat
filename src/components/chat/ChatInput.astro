@@ -1,0 +1,65 @@
+---
+import Button from '../ui/Button.astro'
+---
+
+<form id="chat-form" class="border-t border-slate-700 p-4 bg-slate-900/50">
+  <div class="flex items-end gap-3">
+    <div class="flex-1 bg-slate-800 border border-slate-700 rounded-xl focus-within:border-blue-500 transition-colors">
+      <textarea
+        id="message-input"
+        name="message"
+        placeholder="Escribe tu mensaje..."
+        rows="1"
+        class="w-full bg-transparent px-4 py-3 resize-none focus:outline-none text-white placeholder-slate-500 max-h-40"
+      ></textarea>
+    </div>
+
+    <Button type="submit" id="send-btn" disabled size="lg" class="shrink-0">
+      <span id="send-text">Enviar</span>
+      <svg
+        id="send-icon"
+        class="w-5 h-5 ml-2"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+        />
+      </svg>
+    </Button>
+  </div>
+
+  <div class="flex items-center justify-between mt-2 text-xs text-slate-500">
+    <div class="flex gap-4">
+      <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400">Enter</kbd> para enviar</span>
+      <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400">Shift+Enter</kbd> nueva línea</span>
+    </div>
+    <span id="model-status" class="text-slate-600">Cargando modelo...</span>
+  </div>
+</form>
+
+<script>
+  const textarea = document.getElementById('message-input') as HTMLTextAreaElement
+
+  if (textarea) {
+    textarea.addEventListener('input', () => {
+      textarea.style.height = 'auto'
+      textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px'
+    })
+
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        const form = document.getElementById('chat-form') as HTMLFormElement
+        const sendBtn = document.getElementById('send-btn') as HTMLButtonElement
+        if (form && !sendBtn.disabled) {
+          form.requestSubmit()
+        }
+      }
+    })
+  }
+</script>

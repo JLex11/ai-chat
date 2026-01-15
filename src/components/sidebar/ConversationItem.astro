@@ -1,0 +1,48 @@
+---
+interface Props {
+  id: string
+  title: string
+  updatedAt: number
+  isActive?: boolean
+  isTemplate?: boolean
+}
+
+const { id, title, updatedAt, isActive = false, isTemplate = false } = Astro.props
+
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now()
+  const diff = now - timestamp
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+
+  if (minutes < 1) return 'Ahora'
+  if (minutes < 60) return `${minutes}m`
+  if (hours < 24) return `${hours}h`
+  if (days < 7) return `${days}d`
+  return new Date(timestamp).toLocaleDateString('es', { month: 'short', day: 'numeric' })
+}
+---
+
+<li
+  class:list={[
+    'conversation-item group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors',
+    { 'bg-slate-700': isActive, 'hover:bg-slate-800': !isActive, 'hidden': isTemplate }
+  ]}
+  data-id={id}
+>
+  <div class="flex-1 min-w-0">
+    <p class="text-sm text-white truncate">{title}</p>
+    <p class="text-xs text-slate-500">{formatRelativeTime(updatedAt)}</p>
+  </div>
+
+  <button
+    type="button"
+    class="delete-conversation opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-400 hover:bg-red-900/30 rounded transition-all"
+    title="Eliminar"
+  >
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  </button>
+</li>
