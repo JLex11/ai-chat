@@ -1,50 +1,70 @@
-# AI Chat - Your AI Chat that run on local
+# AI Chat
 
-```sh
-npm create astro@latest -- --template basics
-```
+Chat de IA local, moderno y ligero, construido con Astro y WebLLM. Ejecuta modelos en el navegador, guarda tus conversaciones y no requiere backend.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/withastro/astro/tree/latest/examples/basics)
-[![Open with CodeSandbox](https://assets.codesandbox.io/github/button-edit-lime.svg)](https://codesandbox.io/p/sandbox/github/withastro/astro/tree/latest/examples/basics)
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/withastro/astro?devcontainer_path=.devcontainer/basics/devcontainer.json)
+![AI Chat](public/ai-chat.webp)
 
-![ai-chat](https://github.com/JLex11/ai-chat/assets/93395794/3315efd5-8451-4549-9014-e7e903767d2d)
+## ✨ Características
 
-## 🚀 Project Structure
+- Chat 100% local en el navegador con WebLLM.
+- Selector de modelos con tamaños, velocidad y recomendaciones.
+- Historial de conversaciones persistente en `localStorage`.
+- Renderizado de Markdown con resaltado de sintaxis.
+- Interfaz responsive con sidebar, typing indicator y composición limpia.
 
-Inside of your Astro project, you'll see the following folders and files:
+## 🧱 Stack
+
+- Astro + TypeScript
+- Tailwind CSS v4
+- WebLLM (@mlc-ai/web-llm)
+- Marked + Shiki para Markdown
+
+## 📁 Estructura del proyecto
 
 ```text
 /
 ├── public/
-│   └── favicon.svg
+│   ├── ai-chat.webp
+│   └── fonts/
 ├── src/
 │   ├── components/
-│   │   └── Card.astro
 │   ├── layouts/
-│   │   └── Layout.astro
 │   ├── pages/
-│   │   └── index.astro
-│   └── scripts/
-│       └── worker.ts
+│   ├── scripts/
+│   │   ├── chat/
+│   │   ├── config/
+│   │   ├── storage/
+│   │   └── utils/
+│   └── styles/
 └── package.json
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## 🚀 Inicio rápido
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+```sh
+bun i
+bun dev
+```
 
-Any static assets, like images, can be placed in the `public/` directory.
+Abre `http://localhost:4321` en tu navegador.
 
-## 🧞 Commands
+## 🧠 Modelos
 
-All commands are run from the root of the project, from a terminal:
+Los modelos disponibles se configuran en `src/scripts/config/models.ts`. Puedes:
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+- Ajustar el modelo por defecto.
+- Añadir o quitar modelos compatibles con WebLLM.
+- Editar descripciones, tamaño y velocidad mostrados en la UI.
+
+## 🧪 Comandos
+
+| Comando         | Acción                                      |
+| :-------------- | :------------------------------------------ |
+| `bun dev`   | Servidor local en `localhost:4321`          |
+| `bun run build` | Build de producción en `./dist/`            |
+| `bun run preview` | Previsualiza el build localmente          |
+| `bun run astro` | Comandos del CLI de Astro                   |
+
+## 🔒 Privacidad
+
+Este proyecto no envía conversaciones a un servidor. Todo el historial queda almacenado localmente en el navegador del usuario.
