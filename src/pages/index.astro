@@ -14,7 +14,7 @@ import ChatLayout from '../layouts/ChatLayout.astro'
 </ChatLayout>
 
 <script>
-  import { initChat, sendMessage, switchModel, getCurrentModelId } from '../scripts/chat/engine'
+  import { initChat, sendMessage, switchModel, getCurrentModelId, checkIfModelIsCached } from '../scripts/chat/engine'
   import { renderMarkdown, initMarkdown } from '../scripts/utils/markdown'
   import { getSelectedModel, setSelectedModel, getSelectedPrompt, setSelectedPrompt } from '../scripts/storage/preferences'
   import {
@@ -77,9 +77,12 @@ import ChatLayout from '../layouts/ChatLayout.astro'
       $promptSelect.value = savedPrompt
     }
 
+    const isCached = await checkIfModelIsCached(savedModel)
     const modelConfig = getModelById(savedModel)
     if (modelConfig) {
-      $loadingModelName.textContent = `${modelConfig.name} (${modelConfig.size})`
+      $loadingModelName.textContent = isCached
+        ? `${modelConfig.name} (en caché local)`
+        : `${modelConfig.name} (${modelConfig.size})`
     }
 
     // Always load/create conversation first
@@ -381,9 +384,12 @@ import ChatLayout from '../layouts/ChatLayout.astro'
 
     setSelectedModel(newModelId)
 
+    const isCached = await checkIfModelIsCached(newModelId)
     const modelConfig = getModelById(newModelId)
     if (modelConfig) {
-      $loadingModelName.textContent = `${modelConfig.name} (${modelConfig.size})`
+      $loadingModelName.textContent = isCached
+        ? `${modelConfig.name} (en caché local)`
+        : `${modelConfig.name} (${modelConfig.size})`
     }
 
     showLoadingOverlay()

@@ -1,10 +1,21 @@
-import { CreateWebWorkerMLCEngine, type WebWorkerMLCEngine } from '@mlc-ai/web-llm'
+import {
+  CreateWebWorkerMLCEngine,
+  hasModelInCache,
+  type ChatOptions,
+  type WebWorkerMLCEngine,
+} from '@mlc-ai/web-llm'
 import type { InitProgressCallback, Message } from './types'
 import { getSelectedModel, getSelectedPrompt } from '../storage/preferences'
 import { getPromptById } from '../config/prompts'
 
 let engine: WebWorkerMLCEngine | null = null
+let worker: Worker | null = null
 let currentModelId: string | null = null
+
+// Optimización de VRAM: límite de contexto razonable para WebGPU
+export const DEFAULT_CHAT_OPTS: ChatOptions = {
+  context_window_size: 4096,
+}
 
 export function getEngine(): WebWorkerMLCEngine | null {
   return engine
@@ -18,17 +29,34 @@ export function getCurrentModelId(): string | null {
   return currentModelId
 }
 
+export async function checkIfModelIsCached(modelId: string): Promise<boolean> {
+  try {
+    return await hasModelInCache(modelId)
+  } catch {
+    return false
+  }
+}
+
 export async function initEngine(
   modelId: string,
   onProgress: InitProgressCallback
 ): Promise<WebWorkerMLCEngine> {
-  const worker = new Worker(new URL('../worker.ts', import.meta.url), {
+  if (engine && worker) {
+    return switchModel(modelId, onProgress)
+  }
+
+  worker = new Worker(new URL('../worker.ts', import.meta.url), {
     type: 'module',
   })
 
-  engine = await CreateWebWorkerMLCEngine(worker, modelId, {
-    initProgressCallback: onProgress,
-  })
+  engine = await CreateWebWorkerMLCEngine(
+    worker,
+    modelId,
+    {
+      initProgressCallback: onProgress,
+    },
+    DEFAULT_CHAT_OPTS
+  )
 
   currentModelId = modelId
   return engine
@@ -39,11 +67,25 @@ export async function switchModel(
   onProgress: InitProgressCallback
 ): Promise<WebWorkerMLCEngine> {
   if (engine) {
-    await engine.unload()
-    engine = null
+    engine.setInitProgressCallback(onProgress)
+    await engine.reload(newModelId, DEFAULT_CHAT_OPTS)
+    currentModelId = newModelId
+    return engine
   }
 
   return initEngine(newModelId, onProgress)
+}
+
+export async function unloadEngine(): Promise<void> {
+  if (engine) {
+    await engine.unload()
+    engine = null
+  }
+  if (worker) {
+    worker.terminate()
+    worker = null
+  }
+  currentModelId = null
 }
 
 export function getSystemMessage(): Message | null {
@@ -70,12 +112,19 @@ export async function sendMessage(
 
   const systemMessage = getSystemMessage()
   const allMessages = systemMessage
-    ? [{ role: systemMessage.role, content: systemMessage.content }, ...messages.map(m => ({ role: m.role, content: m.content }))]
+    ? [
+        { role: systemMessage.role, content: systemMessage.content },
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+      ]
     : messages.map(m => ({ role: m.role, content: m.content }))
 
   const response = await engine.chat.completions.create({
     messages: allMessages as { role: 'user' | 'assistant' | 'system'; content: string }[],
     stream: true,
+    temperature: 0.7,
+    top_p: 0.9,
+    repetition_penalty: 1.05,
+    max_tokens: 1500,
   })
 
   let fullText = ''
