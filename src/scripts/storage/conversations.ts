@@ -95,3 +95,43 @@ export function setCurrentConversationId(id: string | null): boolean {
   }
   return storage.set(STORAGE_KEYS.CURRENT_CONVERSATION, id)
 }
+
+export interface ConversationGroup {
+  label: string
+  conversations: Conversation[]
+}
+
+export function groupConversationsByPeriod(conversations: Conversation[]): ConversationGroup[] {
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const yesterdayStart = todayStart - 86400000
+  const sevenDaysStart = todayStart - 6 * 86400000
+  const thirtyDaysStart = todayStart - 29 * 86400000
+
+  const groups: Record<string, Conversation[]> = {
+    Hoy: [],
+    Ayer: [],
+    'Últimos 7 días': [],
+    'Últimos 30 días': [],
+    Anteriores: [],
+  }
+
+  for (const conv of conversations) {
+    const time = conv.updatedAt || conv.createdAt
+    if (time >= todayStart) {
+      groups.Hoy.push(conv)
+    } else if (time >= yesterdayStart) {
+      groups.Ayer.push(conv)
+    } else if (time >= sevenDaysStart) {
+      groups['Últimos 7 días'].push(conv)
+    } else if (time >= thirtyDaysStart) {
+      groups['Últimos 30 días'].push(conv)
+    } else {
+      groups.Anteriores.push(conv)
+    }
+  }
+
+  return Object.entries(groups)
+    .filter(([_, list]) => list.length > 0)
+    .map(([label, list]) => ({ label, conversations: list }))
+}

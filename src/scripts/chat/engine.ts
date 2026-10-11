@@ -138,6 +138,16 @@ export async function sendMessage(
   return fullText
 }
 
+export function stopGeneration(): void {
+  if (engine) {
+    try {
+      engine.interruptGenerate()
+    } catch (e) {
+      console.warn('Error interrupting generation:', e)
+    }
+  }
+}
+
 export async function initChat(onProgress: InitProgressCallback): Promise<void> {
   const modelId = getSelectedModel()
   await initEngine(modelId, onProgress)

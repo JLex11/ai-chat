@@ -17,6 +17,7 @@ export interface Conversation {
 export interface Preferences {
   selectedModel: string
   selectedPrompt: string
+  theme?: 'light' | 'dark'
 }
 
 export interface ModelConfig {

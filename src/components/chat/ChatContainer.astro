@@ -3,11 +3,40 @@ import ChatHeader from './ChatHeader.astro'
 import MessageList from './MessageList.astro'
 import ChatInput from './ChatInput.astro'
 import TypingIndicator from './TypingIndicator.astro'
+import type { Message } from '../../scripts/chat/types'
+
+interface Props {
+  initialMessages?: Message[]
+}
+
+const { initialMessages = [] } = Astro.props
+const hasMessages = initialMessages.length > 0
 ---
 
-<div class="flex flex-col h-full bg-slate-900">
+<div
+  id="chat-container"
+  class:list={[
+    'flex flex-col h-full bg-[var(--bg-primary)] relative min-w-0 overflow-hidden transition-colors duration-150',
+    { 'is-empty': !hasMessages }
+  ]}
+>
   <ChatHeader />
-  <MessageList />
+  <MessageList initialMessages={initialMessages} />
   <TypingIndicator />
   <ChatInput />
 </div>
+
+<style>
+  :global(#chat-container.is-empty) :global(#messages) {
+    flex: 0 1 auto;
+    margin-top: auto;
+  }
+  :global(#chat-container.is-empty) :global(.composer-container) {
+    margin-bottom: auto;
+    padding-bottom: 1.5rem;
+    background: transparent !important;
+  }
+  :global(#chat-container:not(.is-empty)) :global(#empty-suggestions) {
+    display: none !important;
+  }
+</style>

@@ -11,16 +11,17 @@ interface Props {
   id?: string
   class?: string
   name?: string
+  title?: string
 }
 
-const { options, value, id, class: className = '', name } = Astro.props
+const { options, value, id, class: className = '', name, title } = Astro.props
 
-const classes = `bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer ${className}`
+const classes = `bg-[var(--bg-primary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs sm:text-sm font-medium rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-neutral-400 dark:focus:ring-neutral-500 cursor-pointer transition-colors shadow-2xs ${className}`
 ---
 
-<select class={classes} id={id} name={name}>
+<select class={classes} id={id} name={name} title={title}>
   {options.map(option => (
-    <option value={option.value} selected={option.value === value}>
+    <option value={option.value} selected={option.value === value} class="bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {option.label}
     </option>
   ))}

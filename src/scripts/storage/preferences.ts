@@ -6,6 +6,7 @@ import { DEFAULT_PROMPT_ID } from '../config/prompts'
 const defaultPreferences: Preferences = {
   selectedModel: DEFAULT_MODEL,
   selectedPrompt: DEFAULT_PROMPT_ID,
+  theme: 'light',
 }
 
 export function loadPreferences(): Preferences {
@@ -48,4 +49,20 @@ export function getSelectedPrompt(): string {
 
 export function setSelectedPrompt(promptId: string): boolean {
   return updatePreference('selectedPrompt', promptId)
+}
+
+export function getTheme(): 'light' | 'dark' {
+  if (typeof window !== 'undefined') {
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      const qTheme = urlParams.get('theme')
+      if (qTheme === 'dark' || qTheme === 'light') return qTheme
+    } catch {}
+  }
+  const prefs = loadPreferences()
+  return prefs.theme || 'light'
+}
+
+export function setTheme(theme: 'light' | 'dark'): boolean {
+  return updatePreference('theme', theme)
 }

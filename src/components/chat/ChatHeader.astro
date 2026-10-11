@@ -1,62 +1,73 @@
 ---
-import { AVAILABLE_MODELS } from '../../scripts/config/models'
-import { SYSTEM_PROMPTS } from '../../scripts/config/prompts'
-import Button from '../ui/Button.astro'
-import IconButton from '../ui/IconButton.astro'
-import Select from '../ui/Select.astro'
-
-const modelOptions = AVAILABLE_MODELS.map(m => ({
-  value: m.id,
-  label: `${m.name} (${m.size})`,
-  description: m.description,
-}))
-
-const promptOptions = SYSTEM_PROMPTS.map(p => ({
-  value: p.id,
-  label: p.name,
-}))
 ---
 
-<header class='flex items-center justify-between p-4 border-b border-slate-700 bg-slate-900/50'>
-  <div class='flex items-center gap-3'>
-    <IconButton id='toggle-sidebar' title='Menú' class='lg:hidden'>
-      <svg class='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-        <path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 6h16M4 12h16M4 18h16'></path>
+<header class="h-13 border-b border-[var(--border-light)] bg-[var(--bg-primary)] px-3 sm:px-4 flex items-center justify-between shrink-0 select-none z-20">
+  <!-- Left section -->
+  <div class="flex items-center gap-2 min-w-0">
+    <!-- Sidebar Toggle -->
+    <button
+      id="toggle-sidebar"
+      type="button"
+      class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/60 rounded-lg transition-colors cursor-pointer"
+      title="Alternar barra lateral"
+    >
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v18" />
       </svg>
-    </IconButton>
+    </button>
 
-    <div class='flex items-center gap-2'>
-      <div class='w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center'>
-        <svg class='w-5 h-5 text-white' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-          <path
-            stroke-linecap='round'
-            stroke-linejoin='round'
-            stroke-width='2'
-            d='M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'></path>
-        </svg>
-      </div>
-      <h1 class='text-lg font-bold text-white hidden sm:block'>AI Chat</h1>
+    <!-- New Chat Shortcut -->
+    <button
+      id="new-chat-btn"
+      type="button"
+      class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/60 rounded-lg transition-colors cursor-pointer"
+      title="Nueva conversación"
+    >
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    </button>
+
+    <!-- App Brand & Privacy Badge -->
+    <div class="flex items-center gap-2 ml-1">
+      <span class="font-semibold text-sm sm:text-base text-[var(--text-primary)] tracking-tight">AI Chat</span>
+      <span class="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full hidden sm:inline-flex items-center gap-1">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        WebGPU Local
+      </span>
     </div>
   </div>
 
-  <div class='flex items-center gap-3'>
-    <div class='flex items-center gap-2'>
-      <label for='prompt-select' class='text-sm text-slate-400 hidden lg:block'>Modo:</label>
-      <Select id='prompt-select' options={promptOptions} class='w-40 md:w-48' />
+  <!-- Right section -->
+  <div class="flex items-center gap-2 shrink-0">
+    <!-- Model Status Badge -->
+    <div
+      id="model-status-badge"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)]"
+      title="Estado del modelo local WebGPU"
+    >
+      <span id="model-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+      <span id="model-status" class="truncate max-w-[110px]">Cargando...</span>
     </div>
 
-    <div class='flex items-center gap-2'>
-      <label for='model-select' class='text-sm text-slate-400 hidden md:block'>Modelo:</label>
-      <Select id='model-select' options={modelOptions} class='w-48 md:w-56' />
-    </div>
+    <div class="h-4 w-px bg-[var(--border-subtle)] mx-0.5"></div>
 
-    <div class='h-6 w-px bg-slate-700 hidden sm:block'></div>
-
-    <Button id='new-chat-btn' variant='primary' size='sm'>
-      <svg class='w-4 h-4 mr-1.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-        <path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M12 4v16m8-8H4'></path>
+    <!-- Theme Toggle (Light / Dark) -->
+    <button
+      id="theme-toggle"
+      type="button"
+      class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/60 rounded-lg transition-colors cursor-pointer"
+      title="Cambiar tema (Claro / Oscuro)"
+    >
+      <!-- Sun icon (shown in dark mode) -->
+      <svg id="theme-icon-sun" class="w-4.5 h-4.5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
       </svg>
-      <span class='hidden sm:inline'>Nueva</span>
-    </Button>
+      <!-- Moon icon (shown in light mode) -->
+      <svg id="theme-icon-moon" class="w-4.5 h-4.5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+      </svg>
+    </button>
   </div>
 </header>

@@ -2,6 +2,7 @@ const STORAGE_KEYS = {
   PREFERENCES: 'ai-chat-preferences',
   CONVERSATIONS: 'ai-chat-conversations',
   CURRENT_CONVERSATION: 'ai-chat-current-conversation',
+  THEME: 'ai-chat-theme',
 } as const
 
 class LocalStorageManager {

@@ -6,6 +6,7 @@ interface Props {
   disabled?: boolean
   class?: string
   id?: string
+  title?: string
 }
 
 const {
@@ -15,26 +16,27 @@ const {
   disabled = false,
   class: className = '',
   id,
+  title,
 } = Astro.props
 
-const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed'
+const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
 
 const variantClasses = {
-  primary: 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500',
-  secondary: 'bg-slate-700 hover:bg-slate-600 text-white focus:ring-slate-500',
-  ghost: 'bg-transparent hover:bg-slate-700 text-slate-300 focus:ring-slate-500',
-  danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500',
+  primary: 'bg-neutral-900 hover:bg-black text-white dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 shadow-2xs',
+  secondary: 'bg-[var(--bg-secondary)] hover:bg-[var(--border-subtle)]/70 text-[var(--text-primary)] border border-[var(--border-subtle)] shadow-2xs',
+  ghost: 'bg-transparent hover:bg-[var(--border-subtle)]/60 text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+  danger: 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-900/40',
 }
 
 const sizeClasses = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
+  sm: 'px-2.5 py-1 text-xs sm:text-sm',
+  md: 'px-3.5 py-1.5 text-sm',
+  lg: 'px-4 py-2 text-sm sm:text-base',
 }
 
 const classes = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`
 ---
 
-<button type={type} class={classes} disabled={disabled} id={id}>
+<button type={type} class={classes} disabled={disabled} id={id} title={title}>
   <slot />
 </button>
