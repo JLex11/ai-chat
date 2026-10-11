@@ -1,17 +1,16 @@
 ---
 import { AVAILABLE_MODELS } from '../../scripts/config/models'
-import { SYSTEM_PROMPTS } from '../../scripts/config/prompts'
 
 const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
 ---
 
-<div class="composer-container w-full shrink-0 px-4 pb-4 pt-1 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent relative z-10 transition-all duration-300">
+<div class="composer-container w-full px-4 pb-4 pt-8 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/85 to-transparent transition-all duration-300">
   <div class="max-w-3xl mx-auto w-full relative">
     <!-- Scroll to bottom button -->
     <button
       id="scroll-bottom-btn"
       type="button"
-      class="hidden absolute -top-11 left-1/2 -translate-x-1/2 p-2 bg-[var(--bg-secondary)] hover:bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-full shadow-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer z-10"
+      class="hidden absolute -top-11 left-1/2 -translate-x-1/2 p-2 bg-[var(--bg-secondary)]/90 dark:bg-[var(--bg-secondary)]/90 hover:bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-full shadow-md backdrop-blur-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer z-10"
       title="Desplazar al final"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -21,11 +20,10 @@ const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
 
     <!-- Composer form -->
     <form id="chat-form" class="relative">
-      <!-- Hidden inputs for programmatic compatibility -->
+      <!-- Hidden input for model compatibility -->
       <input type="hidden" id="model-select" name="model" value={AVAILABLE_MODELS[0].id} />
-      <input type="hidden" id="prompt-select" name="prompt" value={SYSTEM_PROMPTS[0].id} />
 
-      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[26px] p-2 sm:p-2.5 shadow-xs focus-within:border-[var(--text-muted)] focus-within:shadow-md transition-all duration-150 flex flex-col gap-1.5">
+      <div class="bg-[var(--bg-secondary)]/85 dark:bg-[var(--bg-secondary)]/85 backdrop-blur-xl border border-[var(--border-subtle)]/80 rounded-[26px] p-2 sm:p-2.5 shadow-lg hover:shadow-xl focus-within:border-[var(--text-muted)] focus-within:shadow-xl transition-all duration-200 flex flex-col gap-1.5">
         <!-- Textarea -->
         <textarea
           id="message-input"
@@ -127,41 +125,6 @@ const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
                 </div>
               </div>
             </div>
-
-            <!-- 2. MODE SELECTOR (Compact Chips Segmented Pill) -->
-            <div
-              id="mode-chips-container"
-              class="inline-flex items-center p-0.5 rounded-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] shadow-2xs select-none"
-              role="radiogroup"
-              aria-label="Modo de personalidad del asistente"
-            >
-              {SYSTEM_PROMPTS.map(p => {
-                const icon = p.id === 'coding'
-                  ? '💻'
-                  : p.id === 'concise'
-                  ? '⚡'
-                  : '💬'
-                return (
-                  <button
-                    type="button"
-                    class:list={[
-                      'mode-chip px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-medium transition-all cursor-pointer flex items-center gap-1 select-none',
-                      p.id === 'default'
-                        ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-950 font-semibold shadow-2xs'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/50'
-                    ]}
-                    data-prompt-id={p.id}
-                    title={p.name}
-                    role="radio"
-                    aria-checked={p.id === 'default' ? 'true' : 'false'}
-                  >
-                    <span class="text-[11px] leading-none">{icon}</span>
-                    <span>{p.name}</span>
-                  </button>
-                )
-              })}
-            </div>
-
           </div>
 
           <!-- Right: Keyboard hints & Send/Stop Button -->
@@ -248,10 +211,5 @@ const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
         <span class="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]">Seguimiento claro y cordial</span>
       </button>
     </div>
-
-    <!-- Bottom Disclaimer -->
-    <p class="text-[11px] text-center text-[var(--text-muted)] mt-3 select-none tracking-tight">
-      AI Chat se ejecuta 100% de forma local y privada en tu navegador. Puede cometer errores.
-    </p>
   </div>
 </div>

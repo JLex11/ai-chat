@@ -5,8 +5,8 @@ import {
   type WebWorkerMLCEngine,
 } from '@mlc-ai/web-llm'
 import type { InitProgressCallback, Message } from './types'
-import { getSelectedModel, getSelectedPrompt } from '../storage/preferences'
-import { getPromptById } from '../config/prompts'
+import { getSelectedModel } from '../storage/preferences'
+import { SYSTEM_PROMPT } from '../config/prompts'
 
 let engine: WebWorkerMLCEngine | null = null
 let worker: Worker | null = null
@@ -88,16 +88,11 @@ export async function unloadEngine(): Promise<void> {
   currentModelId = null
 }
 
-export function getSystemMessage(): Message | null {
-  const promptId = getSelectedPrompt()
-  const promptConfig = getPromptById(promptId)
-
-  if (!promptConfig) return null
-
+export function getSystemMessage(): Message {
   return {
     id: 'system',
     role: 'system',
-    content: promptConfig.prompt,
+    content: SYSTEM_PROMPT,
     timestamp: Date.now(),
   }
 }

@@ -1,11 +1,9 @@
 import type { Preferences } from '../chat/types'
 import { storage, STORAGE_KEYS } from './localStorage'
 import { DEFAULT_MODEL, AVAILABLE_MODELS } from '../config/models'
-import { DEFAULT_PROMPT_ID } from '../config/prompts'
 
 const defaultPreferences: Preferences = {
   selectedModel: DEFAULT_MODEL,
-  selectedPrompt: DEFAULT_PROMPT_ID,
   theme: 'light',
 }
 
@@ -41,14 +39,6 @@ export function getSelectedModel(): string {
 
 export function setSelectedModel(modelId: string): boolean {
   return updatePreference('selectedModel', modelId)
-}
-
-export function getSelectedPrompt(): string {
-  return loadPreferences().selectedPrompt
-}
-
-export function setSelectedPrompt(promptId: string): boolean {
-  return updatePreference('selectedPrompt', promptId)
 }
 
 export function getTheme(): 'light' | 'dark' {

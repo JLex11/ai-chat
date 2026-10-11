@@ -2,7 +2,6 @@
 import ChatHeader from './ChatHeader.astro'
 import MessageList from './MessageList.astro'
 import ChatInput from './ChatInput.astro'
-import TypingIndicator from './TypingIndicator.astro'
 import type { Message } from '../../scripts/chat/types'
 
 interface Props {
@@ -16,27 +15,64 @@ const hasMessages = initialMessages.length > 0
 <div
   id="chat-container"
   class:list={[
-    'flex flex-col h-full bg-[var(--bg-primary)] relative min-w-0 overflow-hidden transition-colors duration-150',
+    'relative h-full w-full overflow-hidden bg-[var(--bg-primary)] transition-colors duration-150',
     { 'is-empty': !hasMessages }
   ]}
 >
   <ChatHeader />
   <MessageList initialMessages={initialMessages} />
-  <TypingIndicator />
   <ChatInput />
 </div>
 
 <style>
+  /* Active Conversation: Edge-to-Edge with floating Header and Composer */
+  :global(#chat-container:not(.is-empty)) :global(#messages) {
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+  }
+
+  :global(#chat-container:not(.is-empty)) :global(.composer-container) {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  :global(#chat-container:not(.is-empty)) :global(.composer-container #chat-form),
+  :global(#chat-container:not(.is-empty)) :global(.composer-container #scroll-bottom-btn),
+  :global(#chat-container:not(.is-empty)) :global(.composer-container #empty-suggestions),
+  :global(#chat-container:not(.is-empty)) :global(.composer-container p) {
+    pointer-events: auto;
+  }
+
+  :global(#chat-container:not(.is-empty)) :global(#empty-suggestions) {
+    display: none !important;
+  }
+
+  /* Empty State Mode: Centered Layout */
+  :global(#chat-container.is-empty) {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
   :global(#chat-container.is-empty) :global(#messages) {
     flex: 0 1 auto;
     margin-top: auto;
+    overflow: visible;
+    padding-top: 5rem;
+    padding-bottom: 0;
   }
+
   :global(#chat-container.is-empty) :global(.composer-container) {
+    position: relative;
     margin-bottom: auto;
-    padding-bottom: 1.5rem;
+    pointer-events: auto;
     background: transparent !important;
-  }
-  :global(#chat-container:not(.is-empty)) :global(#empty-suggestions) {
-    display: none !important;
+    padding-top: 0.5rem;
+    padding-bottom: 2rem;
   }
 </style>

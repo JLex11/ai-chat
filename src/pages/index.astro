@@ -91,8 +91,8 @@ const demoConversations = isDemo
 
 <script>
   import { initChat, sendMessage, switchModel, getCurrentModelId, checkIfModelIsCached, stopGeneration } from '../scripts/chat/engine'
-  import { renderMarkdown, initMarkdown } from '../scripts/utils/markdown'
-  import { getSelectedModel, setSelectedModel, getSelectedPrompt, setSelectedPrompt, getTheme, setTheme } from '../scripts/storage/preferences'
+  import { renderMarkdown, initMarkdown, createStreamingRenderer } from '../scripts/utils/markdown'
+  import { getSelectedModel, setSelectedModel, getTheme, setTheme } from '../scripts/storage/preferences'
   import {
     loadConversations,
     saveConversation,
@@ -123,17 +123,15 @@ const demoConversations = isDemo
   const $modelStatus = document.getElementById('model-status')!
   const $modelStatusDot = document.getElementById('model-status-dot')
   const $modelSelect = document.getElementById('model-select') as HTMLInputElement | HTMLSelectElement | null
-  const $promptSelect = document.getElementById('prompt-select') as HTMLInputElement | HTMLSelectElement | null
   const $themeToggle = document.getElementById('theme-toggle')
 
-  // Redesigned Custom Controls: Model Popover & Mode Chips
+  // Redesigned Custom Controls: Model Popover
   const $modelPopoverTrigger = document.getElementById('model-popover-trigger')
   const $modelPopoverMenu = document.getElementById('model-popover-menu')
   const $modelChevron = document.getElementById('model-chevron')
   const $currentModelName = document.getElementById('current-model-name')
   const $currentModelSize = document.getElementById('current-model-size')
   const modelOptionBtns = document.querySelectorAll<HTMLButtonElement>('.model-option-btn')
-  const modeChips = document.querySelectorAll<HTMLButtonElement>('.mode-chip')
 
   const $messageList = document.getElementById('message-list')!
   const $messages = document.getElementById('messages')!
@@ -166,9 +164,6 @@ const demoConversations = isDemo
 
     const savedModel = getSelectedModel()
     updateModelUI(savedModel)
-
-    const savedPrompt = getSelectedPrompt()
-    updatePromptUI(savedPrompt)
 
     const isCached = await checkIfModelIsCached(savedModel)
     const modelConfig = getModelById(savedModel)
@@ -479,12 +474,9 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       $messageList.appendChild(li)
       return li.querySelector('.message-content')!
     } else {
-      const renderedContent = renderMarkdown(content)
       li.innerHTML = `
         <div class="assistant-wrapper w-full">
-          <div class="message-content prose max-w-none text-[var(--text-primary)] text-[15px] sm:text-[16px] leading-[1.68]">
-            ${renderedContent}
-          </div>
+          <div class="message-content prose max-w-none text-[var(--text-primary)] text-[15px] sm:text-[16px] leading-[1.68]"></div>
           <div class="message-actions flex items-center gap-1 mt-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               type="button"
@@ -503,6 +495,14 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
         </div>
       `
 
+      const $content = li.querySelector('.message-content') as HTMLElement
+
+      if (content) {
+        renderMarkdown(content).then(rendered => {
+          $content.innerHTML = rendered
+        })
+      }
+
       // Copy response handler
       const copyBtn = li.querySelector('.copy-btn') as HTMLButtonElement
       const copyText = li.querySelector('.copy-text') as HTMLSpanElement
@@ -510,7 +510,7 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       const checkIcon = li.querySelector('.check-icon') as HTMLElement
 
       copyBtn?.addEventListener('click', () => {
-        const textToCopy = li.querySelector('.message-content')?.textContent ?? content
+        const textToCopy = content || ($content.textContent ?? '')
         navigator.clipboard.writeText(textToCopy).then(() => {
           copyText.textContent = '¡Copiado!'
           copyIcon.classList.add('hidden')
@@ -524,7 +524,7 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       })
 
       $messageList.appendChild(li)
-      return li.querySelector('.message-content')!
+      return $content
     }
   }
 
@@ -737,24 +737,32 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
     $typingIndicator.classList.remove('hidden')
     scrollToBottom(true)
 
+    let streamer: ReturnType<typeof createStreamingRenderer> | null = null
     try {
       // Create placeholder for assistant message
-      const $assistantContent = addMessageToDOM('', 'assistant')
+      const $assistantContent = addMessageToDOM('', 'assistant') as HTMLElement
       $typingIndicator.classList.add('hidden')
 
-      // Send message and stream response
-      const response = await sendMessage(chatMessages, text => {
-        $assistantContent.innerHTML = renderMarkdown(text)
+      streamer = createStreamingRenderer(html => {
+        $assistantContent.innerHTML = html
         if (!userScrolledUp) {
           scrollToBottom(false)
         }
       })
+
+      // Send message and stream response
+      const response = await sendMessage(chatMessages, text => {
+        streamer?.push(text)
+      })
+
+      await streamer.finish(response)
 
       // Save assistant message
       const assistantMessage = addMessageToConversation(currentConversation!, 'assistant', response)
       chatMessages.push(assistantMessage)
       saveConversation(currentConversation!)
     } catch (error) {
+      streamer?.reset()
       console.error('Error sending message:', error)
       $typingIndicator.classList.add('hidden')
 
@@ -873,42 +881,9 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
     }
   })
 
-  // Custom Mode Chips UI & Behavior
-  function updatePromptUI(promptId: string) {
-    if ($promptSelect) $promptSelect.value = promptId
-
-    modeChips.forEach(chip => {
-      const isActive = chip.dataset.promptId === promptId
-      if (isActive) {
-        chip.className = 'mode-chip px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-950 shadow-2xs transition-all cursor-pointer flex items-center gap-1 select-none'
-        chip.setAttribute('aria-checked', 'true')
-      } else {
-        chip.className = 'mode-chip px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/50 transition-all cursor-pointer flex items-center gap-1 select-none'
-        chip.setAttribute('aria-checked', 'false')
-      }
-    })
-  }
-
-  modeChips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      const promptId = chip.dataset.promptId
-      if (promptId) {
-        setSelectedPrompt(promptId)
-        updatePromptUI(promptId)
-      }
-    })
-  })
-
   // Hidden Select elements fallback
   $modelSelect?.addEventListener('change', () => {
     if ($modelSelect && $modelSelect.value) handleModelChange($modelSelect.value)
-  })
-
-  $promptSelect?.addEventListener('change', () => {
-    if ($promptSelect && $promptSelect.value) {
-      setSelectedPrompt($promptSelect.value)
-      updatePromptUI($promptSelect.value)
-    }
   })
 
   // New chat buttons

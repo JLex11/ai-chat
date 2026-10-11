@@ -16,7 +16,6 @@ export interface Conversation {
 
 export interface Preferences {
   selectedModel: string
-  selectedPrompt: string
   theme?: 'light' | 'dark'
 }
 
@@ -27,12 +26,6 @@ export interface ModelConfig {
   size: string
   speed: 'fast' | 'medium' | 'slow'
   recommended: boolean
-}
-
-export interface SystemPromptConfig {
-  id: string
-  name: string
-  prompt: string
 }
 
 export interface ChatState {

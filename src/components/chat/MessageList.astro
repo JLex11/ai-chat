@@ -1,5 +1,6 @@
 ---
 import MessageItem from './MessageItem.astro'
+import TypingIndicator from './TypingIndicator.astro'
 import type { Message } from '../../scripts/chat/types'
 
 interface Props {
@@ -12,7 +13,7 @@ const hasMessages = initialMessages.length > 0
 
 <div
   id="messages"
-  class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 scrollbar-thin relative scroll-smooth"
+  class="h-full w-full overflow-y-auto overflow-x-hidden px-4 sm:px-6 pt-16 sm:pt-20 pb-36 sm:pb-44 scrollbar-thin relative scroll-smooth"
 >
   <div class="max-w-3xl mx-auto w-full flex flex-col justify-start">
     <!-- Empty State Header -->
@@ -37,11 +38,14 @@ const hasMessages = initialMessages.length > 0
     </div>
 
     <!-- Active Message List -->
-    <ul id="message-list" class="space-y-6 w-full flex flex-col pt-2 pb-6">
+    <ul id="message-list" class="space-y-6 w-full flex flex-col pt-2 pb-2">
       {initialMessages.map(msg => (
         <MessageItem role={msg.role as 'user' | 'assistant'} content={msg.content} />
       ))}
     </ul>
+
+    <!-- Typing Indicator (inside message stream) -->
+    <TypingIndicator />
   </div>
 </div>
 
