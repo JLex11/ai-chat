@@ -2,6 +2,7 @@
 import ChatContainer from '../components/chat/ChatContainer.astro'
 import Sidebar from '../components/sidebar/Sidebar.astro'
 import LoadingOverlay from '../components/ui/LoadingOverlay.astro'
+import SkillsModal from '../components/skills/SkillsModal.astro'
 import ChatLayout from '../layouts/ChatLayout.astro'
 import type { Message } from '../scripts/chat/types'
 
@@ -87,6 +88,7 @@ const demoConversations = isDemo
     <ChatContainer initialMessages={demoMessages} />
   </div>
   <LoadingOverlay />
+  <SkillsModal />
 </ChatLayout>
 
 <script>
@@ -107,6 +109,22 @@ const demoConversations = isDemo
   } from '../scripts/storage/conversations'
   import { getModelById } from '../scripts/config/models'
   import type { Conversation, Message } from '../scripts/chat/types'
+  import {
+    getInstalledSkills,
+    getSkillMode,
+    setSkillMode,
+    toggleSkillEnabled,
+    deleteSkill,
+    isSkillInstalled,
+    installFromCatalog,
+    getSkillById,
+    getActiveSkills,
+    saveSkill,
+  } from '../scripts/skills/storage'
+  import { SKILLS_CATALOG } from '../scripts/skills/catalog'
+  import { matchSkillForPrompt } from '../scripts/skills/matcher'
+  import { importSkillFromGitHub, parseSkillMarkdown } from '../scripts/skills/importer'
+  import type { Skill, SkillCatalogItem, SkillMode } from '../scripts/skills/types'
 
   // DOM Elements
   const $loadingOverlay = document.getElementById('loading-overlay')!
@@ -132,6 +150,67 @@ const demoConversations = isDemo
   const $currentModelName = document.getElementById('current-model-name')
   const $currentModelSize = document.getElementById('current-model-size')
   const modelOptionBtns = document.querySelectorAll<HTMLButtonElement>('.model-option-btn')
+
+  // Skills Controls & Popover
+  const $skillPopoverTrigger = document.getElementById('skill-popover-trigger')
+  const $skillPopoverMenu = document.getElementById('skill-popover-menu')
+  const $skillChevron = document.getElementById('skill-chevron')
+  const $currentSkillLabel = document.getElementById('current-skill-label')
+  const $skillPillIcon = document.getElementById('skill-pill-icon')
+  const $skillActiveBadge = document.getElementById('skill-active-badge')
+  const $quickSkillsList = document.getElementById('quick-skills-list')
+  const $openMarketplaceFromPopover = document.getElementById('open-marketplace-from-popover')
+  const skillModeBtns = document.querySelectorAll<HTMLButtonElement>('.skill-mode-btn')
+
+  // Skills Marketplace Modal Elements
+  const $skillsModal = document.getElementById('skills-modal')
+  const $closeSkillsModal = document.getElementById('close-skills-modal')
+  const $openSkillsMarketplaceBtn = document.getElementById('open-skills-marketplace-btn')
+  const $sidebarSkillsCount = document.getElementById('sidebar-skills-count')
+  const $tabInstalledCount = document.getElementById('tab-installed-count')
+
+  // Modal Tab Switching
+  const skillsTabBtns = document.querySelectorAll<HTMLButtonElement>('.skills-tab-btn')
+  const $tabPanelMarketplace = document.getElementById('tab-panel-marketplace')
+  const $tabPanelInstalled = document.getElementById('tab-panel-installed')
+  const $tabPanelImport = document.getElementById('tab-panel-import')
+
+  // Marketplace tab controls
+  const $marketplaceSearchInput = document.getElementById('marketplace-search-input') as HTMLInputElement | null
+  const categoryFilterBtns = document.querySelectorAll<HTMLButtonElement>('.category-filter-btn')
+  const leaderboardViewBtns = document.querySelectorAll<HTMLButtonElement>('.leaderboard-view-btn')
+  const $liveApiDot = document.getElementById('live-api-dot')
+  const $liveApiStatusText = document.getElementById('live-api-status-text')
+  const $marketplaceLoadingState = document.getElementById('marketplace-loading-state')
+  const $marketplaceCardsGrid = document.getElementById('marketplace-cards-grid')
+  const $marketplaceEmptyResults = document.getElementById('marketplace-empty-results')
+
+  // Installed tab controls
+  const $installedSkillsList = document.getElementById('installed-skills-list')
+  const $installedEmptyState = document.getElementById('installed-empty-state')
+
+  // Import tab controls
+  const $githubImportForm = document.getElementById('github-import-form') as HTMLFormElement | null
+  const $githubRepoInput = document.getElementById('github-repo-input') as HTMLInputElement | null
+  const $githubImportBtn = document.getElementById('github-import-btn') as HTMLButtonElement | null
+  const $githubImportStatus = document.getElementById('github-import-status')
+  const $customSkillForm = document.getElementById('custom-skill-form') as HTMLFormElement | null
+  const $customSkillName = document.getElementById('custom-skill-name') as HTMLInputElement | null
+  const $customSkillTags = document.getElementById('custom-skill-tags') as HTMLInputElement | null
+  const $customSkillDesc = document.getElementById('custom-skill-desc') as HTMLInputElement | null
+  const $customSkillTriggers = document.getElementById('custom-skill-triggers') as HTMLInputElement | null
+  const $customSkillPrompt = document.getElementById('custom-skill-prompt') as HTMLTextAreaElement | null
+
+  // Skill preview modal
+  const $skillPreviewModal = document.getElementById('skill-preview-modal')
+  const $closeSkillPreview = document.getElementById('close-skill-preview')
+  const $previewSkillTitle = document.getElementById('preview-skill-title')
+  const $previewSkillRepo = document.getElementById('preview-skill-repo')
+  const $previewSkillIcon = document.getElementById('preview-skill-icon')
+  const $previewSkillDesc = document.getElementById('preview-skill-desc')
+  const $previewSkillPrompt = document.getElementById('preview-skill-prompt')
+  const $previewCopyBtn = document.getElementById('preview-copy-btn') as HTMLButtonElement | null
+  const $previewActionBtn = document.getElementById('preview-action-btn') as HTMLButtonElement | null
 
   const $messageList = document.getElementById('message-list')!
   const $messages = document.getElementById('messages')!
@@ -159,6 +238,7 @@ const demoConversations = isDemo
   // Initialize
   async function init() {
     initTheme()
+    initSkills()
     updateSidebarState()
     window.addEventListener('resize', updateSidebarState)
 
@@ -446,7 +526,7 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
 
       chatMessages.forEach(msg => {
         if (msg.role === 'system') return
-        addMessageToDOM(msg.content, msg.role as 'user' | 'assistant')
+        addMessageToDOM(msg.content, msg.role as 'user' | 'assistant', msg.skillUsed)
       })
     }
 
@@ -455,7 +535,11 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
     scrollToBottom(false)
   }
 
-  function addMessageToDOM(content: string, role: 'user' | 'assistant') {
+  function addMessageToDOM(
+    content: string,
+    role: 'user' | 'assistant',
+    skillUsed?: { id: string; name: string; icon?: string } | null
+  ) {
     $emptyState.classList.add('hidden')
     $chatContainer?.classList.remove('is-empty')
 
@@ -474,8 +558,16 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       $messageList.appendChild(li)
       return li.querySelector('.message-content')!
     } else {
+      const skillBadgeHtml = skillUsed
+        ? `<div class="skill-badge inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2 rounded-full text-[11px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 select-none">
+            <span>${skillUsed.icon || '✨'}</span>
+            <span>Skill: ${escapeHtml(skillUsed.name)}</span>
+          </div>`
+        : ''
+
       li.innerHTML = `
         <div class="assistant-wrapper w-full">
+          ${skillBadgeHtml}
           <div class="message-content prose max-w-none text-[var(--text-primary)] text-[15px] sm:text-[16px] leading-[1.68]"></div>
           <div class="message-actions flex items-center gap-1 mt-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
@@ -737,10 +829,27 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
     $typingIndicator.classList.remove('hidden')
     scrollToBottom(true)
 
+    // Determine active skill for this message (Auto vs Specific Skill vs None)
+    const currentSkillMode = getSkillMode()
+    let effectiveSkill: Skill | null = null
+
+    if (currentSkillMode === 'auto') {
+      const match = matchSkillForPrompt(messageText)
+      if (match) {
+        effectiveSkill = match.skill
+      }
+    } else if (currentSkillMode !== 'none') {
+      effectiveSkill = getSkillById(currentSkillMode) ?? null
+    }
+
+    const skillInfo = effectiveSkill
+      ? { id: effectiveSkill.id, name: effectiveSkill.name, icon: effectiveSkill.icon }
+      : undefined
+
     let streamer: ReturnType<typeof createStreamingRenderer> | null = null
     try {
       // Create placeholder for assistant message
-      const $assistantContent = addMessageToDOM('', 'assistant') as HTMLElement
+      const $assistantContent = addMessageToDOM('', 'assistant', skillInfo) as HTMLElement
       $typingIndicator.classList.add('hidden')
 
       streamer = createStreamingRenderer(html => {
@@ -750,15 +859,24 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
         }
       })
 
-      // Send message and stream response
-      const response = await sendMessage(chatMessages, text => {
-        streamer?.push(text)
-      })
+      // Send message and stream response with active skill instructions
+      const response = await sendMessage(
+        chatMessages,
+        text => {
+          streamer?.push(text)
+        },
+        effectiveSkill
+      )
 
       await streamer.finish(response)
 
-      // Save assistant message
-      const assistantMessage = addMessageToConversation(currentConversation!, 'assistant', response)
+      // Save assistant message with skill metadata
+      const assistantMessage = addMessageToConversation(
+        currentConversation!,
+        'assistant',
+        response,
+        skillInfo
+      )
       chatMessages.push(assistantMessage)
       saveConversation(currentConversation!)
     } catch (error) {
@@ -771,9 +889,10 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
         currentConversation!,
         'assistant',
         'Lo siento, ocurrió un error al procesar el mensaje con el modelo local. Intenta nuevamente.',
+        skillInfo
       )
       chatMessages.push(errorMessage)
-      addMessageToDOM(errorMessage.content, 'assistant')
+      addMessageToDOM(errorMessage.content, 'assistant', skillInfo)
       saveConversation(currentConversation!)
     } finally {
       isGenerating = false
@@ -889,6 +1008,842 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
   // New chat buttons
   $newChatBtn.addEventListener('click', startNewConversation)
   $newChatSidebar.addEventListener('click', startNewConversation)
+
+  // ==========================================
+  // Skills System & Marketplace Management
+  // ==========================================
+  let currentPreviewItem: Skill | SkillCatalogItem | any | null = null
+  let activeMarketplaceCategory = 'all'
+  let currentLeaderboardView = 'trending'
+  let liveMarketplaceSkills: any[] = []
+  let hasFetchedMarketplaceOnce = false
+  let searchDebounceTimeout: any = null
+
+  function initSkills() {
+    updateSkillUI()
+    renderMarketplaceCards()
+    renderInstalledSkillsList()
+    setupSkillsListeners()
+  }
+
+  function updateSkillUI() {
+    const mode = getSkillMode()
+    const installed = getInstalledSkills()
+    const active = getActiveSkills()
+
+    // 1. Update trigger button
+    if (mode === 'auto') {
+      if ($currentSkillLabel) $currentSkillLabel.textContent = 'Skill: Auto'
+      if ($skillPillIcon) $skillPillIcon.textContent = '✨'
+    } else if (mode === 'none') {
+      if ($currentSkillLabel) $currentSkillLabel.textContent = 'Skill: Ninguna'
+      if ($skillPillIcon) $skillPillIcon.textContent = '○'
+    } else {
+      const skill = getSkillById(mode)
+      if (skill) {
+        if ($currentSkillLabel) $currentSkillLabel.textContent = skill.name
+        if ($skillPillIcon) $skillPillIcon.textContent = skill.icon || '⚡'
+      } else {
+        setSkillMode('auto')
+        if ($currentSkillLabel) $currentSkillLabel.textContent = 'Skill: Auto'
+        if ($skillPillIcon) $skillPillIcon.textContent = '✨'
+      }
+    }
+
+    // 2. Update badges & counts
+    if ($skillActiveBadge) $skillActiveBadge.textContent = `${active.length} activas`
+    if ($sidebarSkillsCount) $sidebarSkillsCount.textContent = `${active.length} activas`
+    if ($tabInstalledCount) $tabInstalledCount.textContent = `${installed.length}`
+
+    // 3. Update popover mode checkmarks
+    skillModeBtns.forEach(btn => {
+      const btnMode = btn.dataset.mode
+      const checkIcon = btn.querySelector('.skill-check-icon')
+      if (btnMode === mode) {
+        btn.classList.add('bg-[var(--bg-secondary)]')
+        checkIcon?.classList.remove('opacity-0')
+      } else {
+        btn.classList.remove('bg-[var(--bg-secondary)]')
+        checkIcon?.classList.add('opacity-0')
+      }
+    })
+
+    // 4. Render quick list of skills in popover
+    if ($quickSkillsList) {
+      $quickSkillsList.innerHTML = ''
+      if (installed.length === 0) {
+        const empty = document.createElement('div')
+        empty.className = 'px-2.5 py-1.5 text-[11px] text-[var(--text-muted)] italic'
+        empty.textContent = 'Sin skills instaladas'
+        $quickSkillsList.appendChild(empty)
+      } else {
+        installed.forEach(skill => {
+          const isSelected = mode === skill.id
+          const btn = document.createElement('button')
+          btn.type = 'button'
+          btn.className = `w-full text-left p-1.5 px-2 rounded-lg text-xs flex items-center justify-between gap-1.5 cursor-pointer transition-colors ${
+            isSelected
+              ? 'bg-[var(--bg-secondary)] font-medium text-[var(--text-primary)]'
+              : 'hover:bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          }`
+
+          btn.innerHTML = `
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="text-xs shrink-0">${skill.icon || '⚡'}</span>
+              <span class="truncate">${escapeHtml(skill.name)}</span>
+              ${!skill.enabled ? '<span class="text-[9px] px-1 py-0.2 rounded bg-neutral-200 dark:bg-neutral-800 text-[var(--text-muted)]">inactiva</span>' : ''}
+            </div>
+            ${isSelected ? '<svg class="w-3.5 h-3.5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>' : ''}
+          `
+
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation()
+            setSkillMode(skill.id)
+            updateSkillUI()
+            toggleSkillPopover(false)
+          })
+
+          $quickSkillsList.appendChild(btn)
+        })
+      }
+    }
+  }
+
+  function toggleSkillPopover(show?: boolean) {
+    if (!$skillPopoverMenu) return
+    const isHidden = $skillPopoverMenu.classList.contains('hidden')
+    const shouldOpen = show !== undefined ? show : isHidden
+
+    if (shouldOpen) {
+      toggleModelPopover(false)
+      $skillPopoverMenu.classList.remove('hidden')
+      $skillChevron?.classList.add('rotate-180')
+      $skillPopoverTrigger?.setAttribute('aria-expanded', 'true')
+    } else {
+      $skillPopoverMenu.classList.add('hidden')
+      $skillChevron?.classList.remove('rotate-180')
+      $skillPopoverTrigger?.setAttribute('aria-expanded', 'false')
+    }
+  }
+
+  function openSkillsModal(defaultTab: 'marketplace' | 'installed' | 'import' = 'marketplace') {
+    toggleSkillPopover(false)
+    toggleModelPopover(false)
+    if ($skillsModal) {
+      $skillsModal.classList.remove('hidden')
+      document.body.style.overflow = 'hidden'
+      switchSkillsTab(defaultTab)
+      if (defaultTab === 'marketplace') {
+        if (!hasFetchedMarketplaceOnce) {
+          hasFetchedMarketplaceOnce = true
+          fetchLiveLeaderboard('trending')
+        } else {
+          renderMarketplaceCards(activeMarketplaceCategory, $marketplaceSearchInput?.value || '')
+        }
+      }
+      renderInstalledSkillsList()
+      if (defaultTab === 'marketplace' && $marketplaceSearchInput) {
+        setTimeout(() => $marketplaceSearchInput.focus(), 50)
+      }
+    }
+  }
+
+  function closeSkillsModal() {
+    if ($skillsModal) {
+      $skillsModal.classList.add('hidden')
+      document.body.style.overflow = ''
+    }
+    closeSkillPreview()
+  }
+
+  function switchSkillsTab(tabName: 'marketplace' | 'installed' | 'import') {
+    skillsTabBtns.forEach(btn => {
+      const isTarget = btn.dataset.tab === tabName
+      if (isTarget) {
+        btn.classList.add('border-indigo-500', 'text-indigo-600', 'dark:text-indigo-400', 'font-semibold')
+        btn.classList.remove('border-transparent', 'text-[var(--text-secondary)]')
+      } else {
+        btn.classList.remove('border-indigo-500', 'text-indigo-600', 'dark:text-indigo-400', 'font-semibold')
+        btn.classList.add('border-transparent', 'text-[var(--text-secondary)]')
+      }
+    })
+
+    $tabPanelMarketplace?.classList.toggle('hidden', tabName !== 'marketplace')
+    $tabPanelInstalled?.classList.toggle('hidden', tabName !== 'installed')
+    $tabPanelImport?.classList.toggle('hidden', tabName !== 'import')
+
+    if (tabName === 'installed') {
+      renderInstalledSkillsList()
+    } else if (tabName === 'marketplace') {
+      renderMarketplaceCards(activeMarketplaceCategory, $marketplaceSearchInput?.value || '')
+    }
+  }
+
+  function showMarketplaceLoading(loading: boolean) {
+    if ($marketplaceLoadingState) {
+      $marketplaceLoadingState.classList.toggle('hidden', !loading)
+    }
+    if ($marketplaceCardsGrid) {
+      $marketplaceCardsGrid.classList.toggle('opacity-40', loading)
+    }
+  }
+
+  function updateLiveStatus(live: boolean, text: string) {
+    if ($liveApiDot) {
+      if (live) {
+        $liveApiDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse'
+      } else {
+        $liveApiDot.className = 'w-2 h-2 rounded-full bg-amber-500'
+      }
+    }
+    if ($liveApiStatusText) {
+      $liveApiStatusText.textContent = text
+    }
+  }
+
+  async function fetchLiveLeaderboard(view = 'trending') {
+    currentLeaderboardView = view
+    leaderboardViewBtns.forEach(btn => {
+      if (btn.dataset.view === view) {
+        btn.className = 'leaderboard-view-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 cursor-pointer shadow-2xs'
+      } else {
+        btn.className = 'leaderboard-view-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] cursor-pointer'
+      }
+    })
+
+    showMarketplaceLoading(true)
+
+    try {
+      const res = await fetch(`/api/skills?view=${encodeURIComponent(view)}&per_page=30`)
+      const data = await res.json()
+
+      if (data.success && data.skills && data.skills.length > 0) {
+        updateLiveStatus(true, `En vivo (${data.skills.length})`)
+        liveMarketplaceSkills = data.skills
+      } else {
+        updateLiveStatus(false, 'Catálogo precargado')
+        liveMarketplaceSkills = []
+      }
+    } catch (err) {
+      console.warn('Live skills fetch fallback:', err)
+      updateLiveStatus(false, 'Catálogo precargado')
+      liveMarketplaceSkills = []
+    } finally {
+      showMarketplaceLoading(false)
+      renderMarketplaceCards(activeMarketplaceCategory, $marketplaceSearchInput?.value || '')
+    }
+  }
+
+  async function searchSkillsLive(query: string) {
+    const q = query.trim()
+    if (!q) {
+      fetchLiveLeaderboard(currentLeaderboardView)
+      return
+    }
+
+    showMarketplaceLoading(true)
+
+    try {
+      const res = await fetch(`/api/skills/search?q=${encodeURIComponent(q)}&limit=30`)
+      const data = await res.json()
+
+      if (data.success && data.skills && data.skills.length > 0) {
+        updateLiveStatus(true, `Resultados (${data.skills.length})`)
+        liveMarketplaceSkills = data.skills
+      } else {
+        updateLiveStatus(false, 'Catálogo precargado')
+        liveMarketplaceSkills = []
+      }
+    } catch (err) {
+      console.warn('Search skills live fallback:', err)
+      updateLiveStatus(false, 'Catálogo precargado')
+      liveMarketplaceSkills = []
+    } finally {
+      showMarketplaceLoading(false)
+      renderMarketplaceCards(activeMarketplaceCategory, q)
+    }
+  }
+
+  async function handleImportSkill(item: any, installBtn: HTMLButtonElement) {
+    if (isSkillInstalled(item.id)) {
+      switchSkillsTab('installed')
+      return
+    }
+
+    if (item.systemPrompt && SKILLS_CATALOG.some(c => c.id === item.id)) {
+      installFromCatalog(item.id)
+      installBtn.textContent = '✓ Instalada'
+      installBtn.className = 'install-skill-btn px-3 py-1.2 rounded-xl text-xs font-medium transition-all cursor-pointer bg-neutral-200 dark:bg-neutral-800 text-[var(--text-secondary)] hover:bg-neutral-300 dark:hover:bg-neutral-700'
+      installBtn.dataset.installed = 'true'
+      updateSkillUI()
+      renderInstalledSkillsList()
+      return
+    }
+
+    installBtn.disabled = true
+    installBtn.textContent = 'Descargando...'
+
+    try {
+      const res = await fetch(`/api/skills/detail?id=${encodeURIComponent(item.id)}`)
+      const data = await res.json()
+      if (!data.success || !data.skillMarkdown) {
+        throw new Error(data.message || 'No se pudo obtener el archivo SKILL.md')
+      }
+
+      const parsed = parseSkillMarkdown(data.skillMarkdown, item.name || 'Skill')
+      const newSkill: Skill = {
+        id: item.id,
+        name: parsed.name || item.name,
+        description: parsed.description || item.description || 'Skill importada desde skills.sh',
+        systemPrompt: parsed.systemPrompt,
+        tags: parsed.tags.length > 0 ? parsed.tags : (item.tags || ['skills.sh']),
+        author: data.source || item.source || 'skills.sh',
+        repo: data.source || item.source || item.id,
+        icon: item.icon || '📦',
+        source: 'marketplace',
+        installedAt: Date.now(),
+        enabled: true,
+        triggers: parsed.triggers,
+        stats: {
+          installs: typeof item.installs === 'number' ? item.installs.toLocaleString() : (item.installs || 'Popular'),
+          activity: 'skills.sh',
+        },
+      }
+
+      saveSkill(newSkill)
+      installBtn.textContent = '✓ Instalada'
+      installBtn.className = 'install-skill-btn px-3 py-1.2 rounded-xl text-xs font-medium transition-all cursor-pointer bg-neutral-200 dark:bg-neutral-800 text-[var(--text-secondary)] hover:bg-neutral-300 dark:hover:bg-neutral-700'
+      installBtn.dataset.installed = 'true'
+      updateSkillUI()
+      renderInstalledSkillsList()
+    } catch (err: any) {
+      alert(`Error al importar: ${err.message || 'No se pudo descargar la skill'}`)
+      installBtn.textContent = '+ Importar'
+    } finally {
+      installBtn.disabled = false
+    }
+  }
+
+  function renderMarketplaceCards(category = 'all', query = '') {
+    if (!$marketplaceCardsGrid) return
+    $marketplaceCardsGrid.innerHTML = ''
+    const q = query.toLowerCase().trim()
+
+    const sourceList = liveMarketplaceSkills.length > 0 ? liveMarketplaceSkills : SKILLS_CATALOG
+
+    const filtered = sourceList.filter(item => {
+      const tags: string[] = item.tags || []
+      const matchesCategory = category === 'all' || tags.some(t => t.toLowerCase() === category.toLowerCase())
+      const name = (item.name || '').toLowerCase()
+      const desc = (item.description || '').toLowerCase()
+      const author = (item.author || item.source || '').toLowerCase()
+      const repo = (item.repo || item.id || '').toLowerCase()
+
+      const matchesQuery = !q ||
+        name.includes(q) ||
+        desc.includes(q) ||
+        author.includes(q) ||
+        repo.includes(q) ||
+        tags.some(t => t.toLowerCase().includes(q))
+      return matchesCategory && matchesQuery
+    })
+
+    if (filtered.length === 0) {
+      $marketplaceEmptyResults?.classList.remove('hidden')
+      return
+    }
+
+    $marketplaceEmptyResults?.classList.add('hidden')
+
+    filtered.forEach(item => {
+      const installed = isSkillInstalled(item.id)
+      const icon = item.icon || '📦'
+      const name = item.name || item.id.split('/').pop() || 'Skill'
+      const repo = item.repo || item.source || item.id
+      const desc = item.description || 'Skill de la comunidad para agentes IA.'
+      const tags: string[] = item.tags || ['skills.sh']
+      const installsDisplay = typeof item.installs === 'number'
+        ? item.installs.toLocaleString()
+        : (item.stats?.installs || item.installs || 'Popular')
+
+      const card = document.createElement('div')
+      card.className = 'p-3.5 sm:p-4 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-indigo-500/40 transition-all flex flex-col justify-between gap-3 group shadow-2xs'
+
+      card.innerHTML = `
+        <div class="space-y-2">
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="text-xl p-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] shadow-2xs">${icon}</span>
+              <div class="min-w-0">
+                <h3 class="font-semibold text-xs sm:text-sm text-[var(--text-primary)] group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">${escapeHtml(name)}</h3>
+                <p class="text-[10px] text-[var(--text-muted)] font-mono truncate">${escapeHtml(repo)}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] font-mono text-[var(--text-secondary)]">
+                ${installsDisplay}
+              </span>
+            </div>
+          </div>
+
+          <p class="text-xs text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
+            ${escapeHtml(desc)}
+          </p>
+
+          <div class="flex flex-wrap gap-1 pt-1">
+            ${tags.map(tag => `<span class="text-[9px] px-1.5 py-0.2 rounded-md bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-muted)] font-medium">${escapeHtml(tag)}</span>`).join('')}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]/70">
+          <button
+            type="button"
+            class="view-skill-btn text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer py-1"
+          >
+            Ver SKILL.md
+          </button>
+          
+          <button
+            type="button"
+            class="install-skill-btn px-3 py-1.2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+              installed
+                ? 'bg-neutral-200 dark:bg-neutral-800 text-[var(--text-secondary)] hover:bg-neutral-300 dark:hover:bg-neutral-700'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs'
+            }"
+            data-installed="${installed ? 'true' : 'false'}"
+          >
+            ${installed ? '✓ Instalada' : '+ Importar'}
+          </button>
+        </div>
+      `
+
+      card.querySelector('.view-skill-btn')?.addEventListener('click', () => {
+        openSkillPreview(item)
+      })
+
+      const installBtn = card.querySelector('.install-skill-btn') as HTMLButtonElement
+      installBtn?.addEventListener('click', () => {
+        handleImportSkill(item, installBtn)
+      })
+
+      $marketplaceCardsGrid.appendChild(card)
+    })
+  }
+
+  function renderInstalledSkillsList() {
+    if (!$installedSkillsList) return
+    $installedSkillsList.innerHTML = ''
+    const installed = getInstalledSkills()
+    const currentMode = getSkillMode()
+
+    if (installed.length === 0) {
+      $installedEmptyState?.classList.remove('hidden')
+      return
+    }
+
+    $installedEmptyState?.classList.add('hidden')
+
+    installed.forEach(skill => {
+      const isCurrentActive = currentMode === skill.id
+      const row = document.createElement('div')
+      row.className = `p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs ${
+        skill.enabled
+          ? 'bg-[var(--bg-secondary)] border-[var(--border-subtle)]'
+          : 'bg-[var(--bg-secondary)]/50 border-[var(--border-subtle)]/50 opacity-70'
+      }`
+
+      row.innerHTML = `
+        <div class="flex items-start gap-3 min-w-0 flex-1">
+          <span class="text-xl p-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] shrink-0">${skill.icon || '⚡'}</span>
+          <div class="min-w-0 space-y-1 flex-1">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h4 class="font-semibold text-xs sm:text-sm text-[var(--text-primary)] truncate">${escapeHtml(skill.name)}</h4>
+              ${isCurrentActive ? '<span class="text-[9px] font-medium px-2 py-0.2 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">Fijada en Chat</span>' : ''}
+              <span class="text-[9px] px-1.5 py-0.2 rounded font-mono bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-muted)]">${escapeHtml(skill.source)}</span>
+            </div>
+            <p class="text-xs text-[var(--text-secondary)] line-clamp-1 leading-snug">${escapeHtml(skill.description)}</p>
+            <div class="flex flex-wrap gap-1 pt-0.5">
+              ${skill.tags.map(t => `<span class="text-[9px] px-1.5 py-0.2 rounded bg-[var(--bg-primary)] text-[var(--text-muted)]">${escapeHtml(t)}</span>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 self-end sm:self-center shrink-0">
+          <!-- Activation Toggle Switch -->
+          <label class="flex items-center gap-1.5 cursor-pointer select-none" title="${skill.enabled ? 'Desactivar skill' : 'Activar skill'}">
+            <span class="text-[11px] text-[var(--text-muted)] hidden md:inline">${skill.enabled ? 'Activa' : 'Inactiva'}</span>
+            <div class="relative">
+              <input type="checkbox" class="sr-only toggle-skill-active" data-skill-id="${skill.id}" ${skill.enabled ? 'checked' : ''} />
+              <div class="w-8 h-4.5 rounded-full transition-colors ${skill.enabled ? 'bg-indigo-600' : 'bg-neutral-300 dark:bg-neutral-700'}"></div>
+              <div class="absolute left-0.5 top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform ${skill.enabled ? 'translate-x-3.5' : ''}"></div>
+            </div>
+          </label>
+
+          <!-- Pin to Chat Button -->
+          <button
+            type="button"
+            class="pin-skill-btn px-2.5 py-1 rounded-lg text-xs font-medium border border-[var(--border-subtle)] hover:bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors cursor-pointer"
+            title="Usar esta skill en el chat actual"
+          >
+            ${isCurrentActive ? 'En uso' : 'Fijar'}
+          </button>
+
+          <!-- View SKILL.md Prompt -->
+          <button
+            type="button"
+            class="view-installed-btn p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors cursor-pointer"
+            title="Ver directrices procedimentales"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          </button>
+
+          <!-- Delete Button -->
+          <button
+            type="button"
+            class="delete-skill-btn p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+            title="Desinstalar skill"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      `
+
+      // Toggle Active Switch
+      row.querySelector('.toggle-skill-active')?.addEventListener('change', () => {
+        toggleSkillEnabled(skill.id)
+        updateSkillUI()
+        renderInstalledSkillsList()
+      })
+
+      // Pin button
+      row.querySelector('.pin-skill-btn')?.addEventListener('click', () => {
+        setSkillMode(skill.id)
+        updateSkillUI()
+        closeSkillsModal()
+      })
+
+      // View button
+      row.querySelector('.view-installed-btn')?.addEventListener('click', () => {
+        openSkillPreview(skill)
+      })
+
+      // Delete button
+      row.querySelector('.delete-skill-btn')?.addEventListener('click', () => {
+        if (confirm(`¿Deseas desinstalar la skill "${skill.name}"?`)) {
+          deleteSkill(skill.id)
+          updateSkillUI()
+          renderInstalledSkillsList()
+          renderMarketplaceCards(activeMarketplaceCategory, $marketplaceSearchInput?.value || '')
+        }
+      })
+
+      $installedSkillsList.appendChild(row)
+    })
+  }
+
+  async function openSkillPreview(item: Skill | SkillCatalogItem | any) {
+    currentPreviewItem = item
+    if (!$skillPreviewModal) return
+
+    const name = item.name || item.id.split('/').pop() || 'Skill'
+    const repo = item.repo || item.source || item.id || 'Local'
+    const icon = item.icon || '⚡'
+    const desc = item.description || 'Skill de la comunidad para agentes IA.'
+
+    if ($previewSkillTitle) $previewSkillTitle.textContent = name
+    if ($previewSkillRepo) $previewSkillRepo.textContent = repo
+    if ($previewSkillIcon) $previewSkillIcon.textContent = icon
+    if ($previewSkillDesc) $previewSkillDesc.textContent = desc
+
+    const installed = isSkillInstalled(item.id)
+    if ($previewActionBtn) {
+      $previewActionBtn.textContent = installed ? 'Fijar en Chat' : '+ Importar Skill'
+      $previewActionBtn.className = installed
+        ? 'px-4 py-1.5 text-xs font-medium bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg cursor-pointer'
+        : 'px-4 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer'
+    }
+
+    if (item.systemPrompt) {
+      if ($previewSkillPrompt) $previewSkillPrompt.textContent = item.systemPrompt
+    } else {
+      if ($previewSkillPrompt) $previewSkillPrompt.textContent = 'Cargando directrices procedimentales (SKILL.md) desde el servidor...'
+      try {
+        const res = await fetch(`/api/skills/detail?id=${encodeURIComponent(item.id)}`)
+        const data = await res.json()
+        if (data.success && data.skillMarkdown) {
+          item.systemPrompt = data.skillMarkdown
+          if ($previewSkillPrompt && currentPreviewItem?.id === item.id) {
+            $previewSkillPrompt.textContent = data.skillMarkdown
+          }
+        } else {
+          if ($previewSkillPrompt && currentPreviewItem?.id === item.id) {
+            $previewSkillPrompt.textContent = `No se pudieron cargar las directrices de SKILL.md.\n${data.message || ''}`
+          }
+        }
+      } catch (err: any) {
+        if ($previewSkillPrompt && currentPreviewItem?.id === item.id) {
+          $previewSkillPrompt.textContent = 'Error al consultar SKILL.md en el servidor.'
+        }
+      }
+    }
+
+    $skillPreviewModal.classList.remove('hidden')
+  }
+
+  function closeSkillPreview() {
+    currentPreviewItem = null
+    $skillPreviewModal?.classList.add('hidden')
+  }
+
+  function setupSkillsListeners() {
+    // Popover trigger
+    $skillPopoverTrigger?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      toggleSkillPopover()
+    })
+
+    // Mode buttons in popover (auto vs none)
+    skillModeBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const mode = btn.dataset.mode as SkillMode
+        if (mode) {
+          setSkillMode(mode)
+          updateSkillUI()
+          toggleSkillPopover(false)
+        }
+      })
+    })
+
+    // Open modal from popover footer
+    $openMarketplaceFromPopover?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      openSkillsModal('marketplace')
+    })
+
+    // Open modal from sidebar button
+    $openSkillsMarketplaceBtn?.addEventListener('click', () => {
+      openSkillsModal('marketplace')
+    })
+
+    // Close modal button
+    $closeSkillsModal?.addEventListener('click', closeSkillsModal)
+
+    // Backdrop click to close modal
+    $skillsModal?.addEventListener('click', (e) => {
+      if (e.target === $skillsModal) {
+        closeSkillsModal()
+      }
+    })
+
+    // Modal Tabs
+    skillsTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab as 'marketplace' | 'installed' | 'import'
+        if (tab) switchSkillsTab(tab)
+      })
+    })
+
+    // Leaderboard view pills (Trending, All-Time, Hot)
+    leaderboardViewBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const view = btn.dataset.view || 'trending'
+        fetchLiveLeaderboard(view)
+      })
+    })
+
+    // Marketplace Search (debounced for live search)
+    $marketplaceSearchInput?.addEventListener('input', () => {
+      const val = $marketplaceSearchInput.value
+      clearTimeout(searchDebounceTimeout)
+      searchDebounceTimeout = setTimeout(() => {
+        if (val.trim()) {
+          searchSkillsLive(val)
+        } else {
+          fetchLiveLeaderboard(currentLeaderboardView)
+        }
+      }, 350)
+    })
+
+    // Category filter pills
+    categoryFilterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const category = btn.dataset.category || 'all'
+        activeMarketplaceCategory = category
+
+        categoryFilterBtns.forEach(b => {
+          if (b.dataset.category === category) {
+            b.className = 'category-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 cursor-pointer'
+          } else {
+            b.className = 'category-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] cursor-pointer'
+          }
+        })
+
+        renderMarketplaceCards(activeMarketplaceCategory, $marketplaceSearchInput?.value || '')
+      })
+    })
+
+    // GitHub import form
+    $githubImportForm?.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      if (!$githubRepoInput || !$githubImportBtn || !$githubImportStatus) return
+
+      const repo = $githubRepoInput.value.trim()
+      if (!repo) return
+
+      $githubImportBtn.disabled = true
+      $githubImportBtn.textContent = 'Descargando...'
+      $githubImportStatus.className = 'text-xs text-indigo-500'
+      $githubImportStatus.textContent = 'Buscando SKILL.md en GitHub...'
+      $githubImportStatus.classList.remove('hidden')
+
+      try {
+        const imported = await importSkillFromGitHub(repo)
+        $githubImportStatus.className = 'text-xs text-emerald-500'
+        $githubImportStatus.textContent = `¡Skill "${imported.name}" importada exitosamente!`
+        $githubRepoInput.value = ''
+        updateSkillUI()
+        renderInstalledSkillsList()
+        renderMarketplaceCards(activeMarketplaceCategory, $marketplaceSearchInput?.value || '')
+        setTimeout(() => {
+          switchSkillsTab('installed')
+          $githubImportStatus?.classList.add('hidden')
+        }, 1200)
+      } catch (err: any) {
+        $githubImportStatus.className = 'text-xs text-red-500'
+        $githubImportStatus.textContent = err?.message || 'Error al importar repositorio.'
+      } finally {
+        $githubImportBtn.disabled = false
+        $githubImportBtn.textContent = 'Descargar e Importar'
+      }
+    })
+
+    // Custom skill form
+    $customSkillForm?.addEventListener('submit', (e) => {
+      e.preventDefault()
+      if (!$customSkillName || !$customSkillDesc || !$customSkillPrompt) return
+
+      const name = $customSkillName.value.trim()
+      const desc = $customSkillDesc.value.trim()
+      const prompt = $customSkillPrompt.value.trim()
+      const tags = $customSkillTags?.value.split(',').map(t => t.trim()).filter(Boolean) || ['Custom']
+      const triggers = $customSkillTriggers?.value.split(',').map(t => t.trim()).filter(Boolean) || [name.toLowerCase()]
+
+      if (!name || !desc || !prompt) return
+
+      const newSkill: Skill = {
+        id: `custom_${Date.now()}`,
+        name,
+        description: desc,
+        systemPrompt: prompt,
+        tags,
+        triggers,
+        author: 'Tú',
+        source: 'custom',
+        installedAt: Date.now(),
+        enabled: true,
+        icon: '💡',
+      }
+
+      saveSkill(newSkill)
+      $customSkillForm.reset()
+      updateSkillUI()
+      renderInstalledSkillsList()
+      switchSkillsTab('installed')
+    })
+
+    // Preview modal actions
+    $closeSkillPreview?.addEventListener('click', closeSkillPreview)
+    $skillPreviewModal?.addEventListener('click', (e) => {
+      if (e.target === $skillPreviewModal) closeSkillPreview()
+    })
+
+    $previewCopyBtn?.addEventListener('click', () => {
+      if (currentPreviewItem && $previewCopyBtn) {
+        navigator.clipboard.writeText(currentPreviewItem.systemPrompt || '')
+        const prevText = $previewCopyBtn.textContent
+        $previewCopyBtn.textContent = '¡Copiado!'
+        setTimeout(() => {
+          $previewCopyBtn.textContent = prevText
+        }, 2000)
+      }
+    })
+
+    $previewActionBtn?.addEventListener('click', async () => {
+      if (!currentPreviewItem) return
+      if (isSkillInstalled(currentPreviewItem.id)) {
+        setSkillMode(currentPreviewItem.id)
+        updateSkillUI()
+        closeSkillsModal()
+      } else {
+        if (currentPreviewItem.systemPrompt && SKILLS_CATALOG.some(c => c.id === currentPreviewItem.id)) {
+          installFromCatalog(currentPreviewItem.id)
+        } else {
+          try {
+            $previewActionBtn.textContent = 'Importando...'
+            const res = await fetch(`/api/skills/detail?id=${encodeURIComponent(currentPreviewItem.id)}`)
+            const data = await res.json()
+            if (data.success && data.skillMarkdown) {
+              const parsed = parseSkillMarkdown(data.skillMarkdown, currentPreviewItem.name || 'Skill')
+              const newSkill: Skill = {
+                id: currentPreviewItem.id,
+                name: parsed.name || currentPreviewItem.name,
+                description: parsed.description || currentPreviewItem.description || 'Skill importada desde skills.sh',
+                systemPrompt: parsed.systemPrompt,
+                tags: parsed.tags.length > 0 ? parsed.tags : (currentPreviewItem.tags || ['skills.sh']),
+                author: data.source || currentPreviewItem.source || 'skills.sh',
+                repo: data.source || currentPreviewItem.source || currentPreviewItem.id,
+                icon: currentPreviewItem.icon || '📦',
+                source: 'marketplace',
+                installedAt: Date.now(),
+                enabled: true,
+                triggers: parsed.triggers,
+                stats: {
+                  installs: typeof currentPreviewItem.installs === 'number' ? currentPreviewItem.installs.toLocaleString() : (currentPreviewItem.installs || 'Popular'),
+                  activity: 'skills.sh',
+                },
+              }
+              saveSkill(newSkill)
+            }
+          } catch (err) {
+            console.error('Failed to import skill:', err)
+          }
+        }
+        updateSkillUI()
+        renderInstalledSkillsList()
+        renderMarketplaceCards(activeMarketplaceCategory, $marketplaceSearchInput?.value || '')
+        if ($previewActionBtn) {
+          $previewActionBtn.textContent = 'Fijar en Chat'
+          $previewActionBtn.className = 'px-4 py-1.5 text-xs font-medium bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg cursor-pointer'
+        }
+      }
+    })
+
+    // Global click listener to close popover
+    document.addEventListener('click', (e) => {
+      if (!$skillPopoverMenu?.contains(e.target as Node) && !$skillPopoverTrigger?.contains(e.target as Node)) {
+        toggleSkillPopover(false)
+      }
+    })
+
+    // Keyboard shortcut '/' to search skills when modal is open
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        toggleSkillPopover(false)
+        if ($skillPreviewModal && !$skillPreviewModal.classList.contains('hidden')) {
+          closeSkillPreview()
+        } else if ($skillsModal && !$skillsModal.classList.contains('hidden')) {
+          closeSkillsModal()
+        }
+      } else if (e.key === '/' && $skillsModal && !$skillsModal.classList.contains('hidden')) {
+        const activeEl = document.activeElement
+        if (activeEl?.tagName !== 'INPUT' && activeEl?.tagName !== 'TEXTAREA') {
+          e.preventDefault()
+          $marketplaceSearchInput?.focus()
+        }
+      }
+    })
+  }
 
   // Start initialization
   init()

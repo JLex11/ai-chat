@@ -48,6 +48,24 @@ const { initialConversations = [] } = Astro.props
   <!-- Conversations History -->
   <ConversationList initialConversations={initialConversations} />
 
+  <!-- Skills Marketplace Action -->
+  <div class="px-3 py-2 border-t border-[var(--border-light)]">
+    <button
+      id="open-skills-marketplace-btn"
+      type="button"
+      class="w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)]/70 rounded-lg transition-colors cursor-pointer group"
+      title="Abrir Skills Marketplace (skills.sh)"
+    >
+      <div class="flex items-center gap-2">
+        <span class="text-indigo-500">🛍️</span>
+        <span class="font-medium">Skills Marketplace</span>
+      </div>
+      <span id="sidebar-skills-count" class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium">
+        4 activas
+      </span>
+    </button>
+  </div>
+
   <!-- Sidebar Footer -->
   <div class="p-3 border-t border-[var(--border-light)] flex items-center justify-between text-xs text-[var(--text-muted)]">
     <div class="flex items-center gap-2">

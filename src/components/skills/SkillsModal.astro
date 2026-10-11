@@ -1,0 +1,334 @@
+---
+---
+
+<div
+  id="skills-modal"
+  class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 hidden animate-fade-in"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="skills-modal-title"
+>
+  <div class="bg-[var(--bg-primary)] border border-[var(--border-subtle)] w-full max-w-4xl h-[92vh] sm:h-[85vh] rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+    
+    <!-- Modal Header -->
+    <div class="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between shrink-0 bg-[var(--bg-secondary)]/50">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg font-mono">
+          ⚡
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 id="skills-modal-title" class="text-base sm:text-lg font-bold text-[var(--text-primary)] tracking-tight">
+              Skills Marketplace
+            </h2>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+              skills.sh
+            </span>
+          </div>
+          <p class="text-xs text-[var(--text-muted)] line-clamp-1">
+            Instala y gestiona procedimientos y habilidades especializadas para tu asistente local.
+          </p>
+        </div>
+      </div>
+
+      <!-- Close Button -->
+      <button
+        type="button"
+        id="close-skills-modal"
+        class="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)] rounded-xl transition-colors cursor-pointer"
+        title="Cerrar modal"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-1 px-5 pt-2 border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]/20 text-xs sm:text-sm font-medium select-none shrink-0 overflow-x-auto scrollbar-none">
+      <button
+        type="button"
+        class="skills-tab-btn px-4 py-2.5 border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400 font-semibold cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap"
+        data-tab="marketplace"
+      >
+        <span>🛍️</span>
+        <span>Descubrir Marketplace</span>
+      </button>
+      <button
+        type="button"
+        class="skills-tab-btn px-4 py-2.5 border-b-2 border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap"
+        data-tab="installed"
+      >
+        <span>📦</span>
+        <span>Mis Skills</span>
+        <span id="tab-installed-count" class="text-[10px] px-1.5 py-0.2 rounded-full bg-neutral-200 dark:bg-neutral-800 font-mono">4</span>
+      </button>
+      <button
+        type="button"
+        class="skills-tab-btn px-4 py-2.5 border-b-2 border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors flex items-center gap-1.5 whitespace-nowrap"
+        data-tab="import"
+      >
+        <span>📥</span>
+        <span>Importar de GitHub / Crear</span>
+      </button>
+    </div>
+
+    <!-- Tab Panels Container -->
+    <div class="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+
+      <!-- ================= TAB 1: MARKETPLACE ================= -->
+      <div id="tab-panel-marketplace" class="space-y-4">
+        <!-- Live Leaderboard Views Bar & Live Status -->
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)]/70 pb-2.5">
+          <div class="flex items-center gap-1 text-xs select-none" id="leaderboard-views-wrapper">
+            <button type="button" class="leaderboard-view-btn px-2.5 py-1 rounded-lg font-medium transition-colors bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 cursor-pointer" data-view="trending">
+              🔥 Trending (24h)
+            </button>
+            <button type="button" class="leaderboard-view-btn px-2.5 py-1 rounded-lg font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors cursor-pointer" data-view="all-time">
+              ⭐ Populares (All-Time)
+            </button>
+            <button type="button" class="leaderboard-view-btn px-2.5 py-1 rounded-lg font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors cursor-pointer" data-view="hot">
+              ⚡ Hot (Recientes)
+            </button>
+          </div>
+
+          <div class="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] font-mono">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" id="live-api-dot"></span>
+            <span id="live-api-status-text">skills.sh en vivo</span>
+          </div>
+        </div>
+
+        <!-- Search and Filter Bar -->
+        <div class="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
+          <div class="relative flex-1">
+            <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              id="marketplace-search-input"
+              placeholder="Buscar en vivo en skills.sh (ej: react, next, sql, interview)..."
+              class="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+          </div>
+
+          <!-- Category Pills -->
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none" id="marketplace-category-filters">
+            <button type="button" class="category-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 cursor-pointer" data-category="all">Todos</button>
+            <button type="button" class="category-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] cursor-pointer" data-category="Coding">Código</button>
+            <button type="button" class="category-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] cursor-pointer" data-category="Planning">Planificación</button>
+            <button type="button" class="category-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] cursor-pointer" data-category="Performance">Rendimiento</button>
+            <button type="button" class="category-filter-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] cursor-pointer" data-category="Security">Seguridad</button>
+          </div>
+        </div>
+
+        <!-- Loading State Indicator -->
+        <div id="marketplace-loading-state" class="hidden text-center py-10 space-y-2">
+          <div class="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p class="text-xs text-[var(--text-muted)] font-mono">Consultando skills.sh en vivo...</p>
+        </div>
+
+        <!-- Skills Leaderboard Grid -->
+        <div id="marketplace-cards-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+          <!-- Populated dynamically via JS -->
+        </div>
+
+        <div id="marketplace-empty-results" class="hidden text-center py-12 text-[var(--text-muted)] text-sm">
+          No se encontraron skills que coincidan con la búsqueda.
+        </div>
+      </div>
+
+      <!-- ================= TAB 2: MIS SKILLS (INSTALLED) ================= -->
+      <div id="tab-panel-installed" class="space-y-4 hidden">
+        <!-- Info Banner -->
+        <div class="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs sm:text-sm text-[var(--text-primary)] flex items-start gap-3">
+          <span class="text-base">💡</span>
+          <div class="space-y-0.5">
+            <p class="font-medium">Gestión y control de activación</p>
+            <p class="text-xs text-[var(--text-secondary)]">
+              Puedes desactivar cualquier skill usando su interruptor. Las skills inactivas <strong>no serán seleccionadas por el modo Auto</strong> ni interferirán con tus respuestas.
+            </p>
+          </div>
+        </div>
+
+        <!-- Installed Skills List -->
+        <div id="installed-skills-list" class="space-y-2.5">
+          <!-- Populated dynamically via JS -->
+        </div>
+
+        <div id="installed-empty-state" class="hidden text-center py-12 text-[var(--text-muted)] text-sm">
+          No tienes ninguna skill instalada aún. ¡Visita la pestaña "Descubrir Marketplace" para importar una!
+        </div>
+      </div>
+
+      <!-- ================= TAB 3: IMPORTAR / CREAR ================= -->
+      <div id="tab-panel-import" class="space-y-6 hidden">
+        
+        <!-- Section 1: Import from GitHub / skills.sh -->
+        <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl p-4 sm:p-5 space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="text-base">🐙</span>
+            <h3 class="text-sm font-semibold text-[var(--text-primary)]">Importar repositorio de GitHub o URL de SKILL.md</h3>
+          </div>
+          <p class="text-xs text-[var(--text-secondary)]">
+            Ingresa el formato shorthand estilo CLI (<code class="px-1 py-0.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded font-mono text-[11px]">npx skills add &lt;owner/repo&gt;</code>) o el enlace directo al archivo <code class="px-1 py-0.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded font-mono text-[11px]">SKILL.md</code>.
+          </p>
+
+          <form id="github-import-form" class="space-y-2.5">
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                id="github-repo-input"
+                placeholder="ej: vercel-labs/skills o mattpocock/skills/grill-me"
+                class="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-indigo-500 transition-colors font-mono"
+              />
+              <button
+                type="submit"
+                id="github-import-btn"
+                class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+              >
+                <span>Descargar e Importar</span>
+              </button>
+            </div>
+            <div id="github-import-status" class="text-xs hidden"></div>
+          </form>
+        </div>
+
+        <!-- Section 2: Create Custom Skill -->
+        <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl p-4 sm:p-5 space-y-4">
+          <div class="flex items-center gap-2">
+            <span class="text-base">✨</span>
+            <h3 class="text-sm font-semibold text-[var(--text-primary)]">Crear Skill personalizada</h3>
+          </div>
+          <p class="text-xs text-[var(--text-secondary)]">
+            Define una habilidad propia para tu asistente. Especifica las palabras clave que la activarán en modo Auto y las instrucciones del sistema.
+          </p>
+
+          <form id="custom-skill-form" class="space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-[var(--text-muted)] uppercase mb-1">Nombre de la Skill</label>
+                <input
+                  type="text"
+                  id="custom-skill-name"
+                  placeholder="ej: SQL Query Optimizer"
+                  required
+                  class="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-xs sm:text-sm text-[var(--text-primary)] focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-[var(--text-muted)] uppercase mb-1">Etiquetas (separadas por coma)</label>
+                <input
+                  type="text"
+                  id="custom-skill-tags"
+                  placeholder="ej: Database, SQL, Performance"
+                  class="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-xs sm:text-sm text-[var(--text-primary)] focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-[var(--text-muted)] uppercase mb-1">Descripción breve</label>
+              <input
+                type="text"
+                id="custom-skill-desc"
+                placeholder="ej: Especialista en optimizar consultas SQL, índices y planes de ejecución."
+                required
+                class="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-xs sm:text-sm text-[var(--text-primary)] focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-[var(--text-muted)] uppercase mb-1">Palabras clave / Triggers para Modo Auto (separados por coma)</label>
+              <input
+                type="text"
+                id="custom-skill-triggers"
+                placeholder="ej: sql, postgres, optimizar query, index, select, inner join"
+                class="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-xs sm:text-sm text-[var(--text-primary)] focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-[var(--text-muted)] uppercase mb-1">Directrices / System Prompt de la Skill (Markdown)</label>
+              <textarea
+                id="custom-skill-prompt"
+                rows="4"
+                placeholder="Eres un especialista senior en bases de datos relacionales...&#10;- Analiza el EXPLAIN ANALYZE&#10;- Sugiere índices B-Tree o GIN apropiados..."
+                required
+                class="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-xs sm:text-sm text-[var(--text-primary)] focus:outline-none focus:border-indigo-500 font-mono scrollbar-thin"
+              ></textarea>
+            </div>
+
+            <div class="flex justify-end">
+              <button
+                type="submit"
+                class="px-4 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-medium text-xs sm:text-sm transition-opacity hover:opacity-90 cursor-pointer"
+              >
+                Guardar en Mis Skills
+              </button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="px-5 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-secondary)]/40 flex items-center justify-between text-xs text-[var(--text-muted)] shrink-0">
+      <div class="flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        <span>Almacenamiento 100% local en tu navegador</span>
+      </div>
+      <a
+        href="https://skills.sh"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="hover:text-[var(--text-primary)] underline flex items-center gap-1"
+      >
+        <span>Explorar skills.sh</span>
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<!-- Preview Prompt Modal Dialog -->
+<div
+  id="skill-preview-modal"
+  class="fixed inset-0 z-60 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 hidden animate-fade-in"
+>
+  <div class="bg-[var(--bg-primary)] border border-[var(--border-subtle)] w-full max-w-2xl max-h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+    <div class="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-secondary)]">
+      <div class="flex items-center gap-2">
+        <span id="preview-skill-icon" class="text-lg">⚡</span>
+        <div>
+          <h3 id="preview-skill-title" class="text-sm font-bold text-[var(--text-primary)]">Skill Preview</h3>
+          <p id="preview-skill-repo" class="text-[11px] text-[var(--text-muted)] font-mono">repo/skill</p>
+        </div>
+      </div>
+      <button type="button" id="close-skill-preview" class="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-lg cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-4 sm:p-5 flex-1 overflow-y-auto space-y-3 scrollbar-thin">
+      <div>
+        <span class="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Descripción</span>
+        <p id="preview-skill-desc" class="text-xs sm:text-sm text-[var(--text-secondary)] mt-0.5"></p>
+      </div>
+      <div>
+        <span class="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Directrices procedimentales (SKILL.md)</span>
+        <pre id="preview-skill-prompt" class="mt-1 p-3.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] font-mono whitespace-pre-wrap max-h-64 overflow-y-auto"></pre>
+      </div>
+    </div>
+    <div class="px-5 py-3 border-t border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-secondary)]">
+      <button type="button" id="preview-copy-btn" class="px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg hover:bg-[var(--border-subtle)] transition-colors cursor-pointer">
+        Copiar Prompt
+      </button>
+      <button type="button" id="preview-action-btn" class="px-4 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors cursor-pointer">
+        Importar Skill
+      </button>
+    </div>
+  </div>
+</div>

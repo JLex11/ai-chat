@@ -6,7 +6,8 @@ import {
 } from '@mlc-ai/web-llm'
 import type { InitProgressCallback, Message } from './types'
 import { getSelectedModel } from '../storage/preferences'
-import { SYSTEM_PROMPT } from '../config/prompts'
+import { getSystemPrompt } from '../config/prompts'
+import type { Skill } from '../skills/types'
 
 let engine: WebWorkerMLCEngine | null = null
 let worker: Worker | null = null
@@ -88,24 +89,25 @@ export async function unloadEngine(): Promise<void> {
   currentModelId = null
 }
 
-export function getSystemMessage(): Message {
+export function getSystemMessage(activeSkill?: Skill | null): Message {
   return {
     id: 'system',
     role: 'system',
-    content: SYSTEM_PROMPT,
+    content: getSystemPrompt(activeSkill),
     timestamp: Date.now(),
   }
 }
 
 export async function sendMessage(
   messages: Message[],
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  activeSkill?: Skill | null
 ): Promise<string> {
   if (!engine) {
     throw new Error('Engine not initialized')
   }
 
-  const systemMessage = getSystemMessage()
+  const systemMessage = getSystemMessage(activeSkill)
   const allMessages = systemMessage
     ? [
         { role: systemMessage.role, content: systemMessage.content },

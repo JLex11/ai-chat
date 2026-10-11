@@ -16,6 +16,7 @@
     "@mlc-ai/web-llm": "^0.2.86",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
+    "@vercel/oidc": "^4.0.0",
     "astro": "^7.3.8",
     "comark": "^0.7.0",
     "shiki": "^4.5.0",

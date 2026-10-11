@@ -3,6 +3,11 @@ export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: number
+  skillUsed?: {
+    id: string
+    name: string
+    icon?: string
+  }
 }
 
 export interface Conversation {

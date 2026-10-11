@@ -69,13 +69,15 @@ export function updateConversationTitle(conversation: Conversation): Conversatio
 export function addMessageToConversation(
   conversation: Conversation,
   role: 'user' | 'assistant',
-  content: string
+  content: string,
+  skillUsed?: { id: string; name: string; icon?: string }
 ): Message {
   const message: Message = {
     id: generateMessageId(),
     role,
     content,
     timestamp: Date.now(),
+    skillUsed,
   }
 
   conversation.messages.push(message)

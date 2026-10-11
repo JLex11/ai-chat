@@ -1,5 +1,6 @@
 ---
 import { AVAILABLE_MODELS } from '../../scripts/config/models'
+import SkillPopover from '../skills/SkillPopover.astro'
 
 const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
 ---
@@ -125,6 +126,9 @@ const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
                 </div>
               </div>
             </div>
+
+            <!-- 2. SKILL SELECTOR (Skills.sh popover & auto mode toggle) -->
+            <SkillPopover />
           </div>
 
           <!-- Right: Keyboard hints & Send/Stop Button -->
