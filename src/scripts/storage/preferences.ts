@@ -5,6 +5,7 @@ import { DEFAULT_MODEL, AVAILABLE_MODELS } from '../config/models'
 const defaultPreferences: Preferences = {
   selectedModel: DEFAULT_MODEL,
   theme: 'light',
+  refinementMode: true,
 }
 
 export function loadPreferences(): Preferences {
@@ -18,7 +19,7 @@ export function loadPreferences(): Preferences {
     storage.set(STORAGE_KEYS.PREFERENCES, saved)
   }
 
-  return saved
+  return { ...defaultPreferences, ...saved }
 }
 
 export function savePreferences(prefs: Preferences): boolean {
@@ -39,6 +40,14 @@ export function getSelectedModel(): string {
 
 export function setSelectedModel(modelId: string): boolean {
   return updatePreference('selectedModel', modelId)
+}
+
+export function getRefinementMode(): boolean {
+  return loadPreferences().refinementMode ?? true
+}
+
+export function setRefinementMode(enabled: boolean): boolean {
+  return updatePreference('refinementMode', enabled)
 }
 
 export function getTheme(): 'light' | 'dark' {

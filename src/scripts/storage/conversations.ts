@@ -1,4 +1,4 @@
-import type { Conversation, Message } from '../chat/types'
+import type { Conversation, Message, ReasoningStep } from '../chat/types'
 import { storage, STORAGE_KEYS } from './localStorage'
 
 const MAX_CONVERSATIONS = 50
@@ -70,7 +70,8 @@ export function addMessageToConversation(
   conversation: Conversation,
   role: 'user' | 'assistant',
   content: string,
-  skillUsed?: { id: string; name: string; icon?: string }
+  skillUsed?: { id: string; name: string; icon?: string },
+  reasoningSteps?: ReasoningStep[]
 ): Message {
   const message: Message = {
     id: generateMessageId(),
@@ -78,6 +79,7 @@ export function addMessageToConversation(
     content,
     timestamp: Date.now(),
     skillUsed,
+    reasoningSteps,
   }
 
   conversation.messages.push(message)

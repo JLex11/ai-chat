@@ -40,7 +40,11 @@ const hasMessages = initialMessages.length > 0
     <!-- Active Message List -->
     <ul id="message-list" class="space-y-6 w-full flex flex-col pt-2 pb-2">
       {initialMessages.map(msg => (
-        <MessageItem role={msg.role as 'user' | 'assistant'} content={msg.content} />
+        <MessageItem
+          role={msg.role as 'user' | 'assistant'}
+          content={msg.content}
+          reasoningSteps={msg.reasoningSteps}
+        />
       ))}
     </ul>
 

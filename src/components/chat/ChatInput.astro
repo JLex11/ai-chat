@@ -25,11 +25,15 @@ const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
       <input type="hidden" id="model-select" name="model" value={AVAILABLE_MODELS[0].id} />
 
       <div class="bg-[var(--bg-secondary)]/85 dark:bg-[var(--bg-secondary)]/85 backdrop-blur-xl border border-[var(--border-subtle)]/80 rounded-[26px] p-2 sm:p-2.5 shadow-lg hover:shadow-xl focus-within:border-[var(--text-muted)] focus-within:shadow-xl transition-all duration-200 flex flex-col gap-1.5">
+        
+        <!-- Attached Files Chips Container -->
+        <div id="attached-files-container" class="hidden flex-wrap items-center gap-1.5 px-2 pt-1 pb-0.5"></div>
+
         <!-- Textarea -->
         <textarea
           id="message-input"
           name="message"
-          placeholder="Pregunta a AI Chat..."
+          placeholder="Pregunta a AI Chat... (prueba cálculos matemáticos, fechas o adjunta documentos)"
           rows="1"
           class="w-full bg-transparent px-3 py-1.5 resize-none focus:outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)] text-[15px] leading-relaxed max-h-44 scrollbar-thin"
         ></textarea>
@@ -129,6 +133,39 @@ const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
 
             <!-- 2. SKILL SELECTOR (Skills.sh popover & auto mode toggle) -->
             <SkillPopover />
+
+            <!-- 3. REFINEMENT LOOP TOGGLE (Planificar, Validar con Herramientas, Redactar y Pulir) -->
+            <button
+              type="button"
+              id="refinement-toggle-btn"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border shadow-2xs transition-all cursor-pointer select-none group bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/15"
+              title="Loop de Razonamiento y Herramientas (Planifica, ejecuta herramientas deterministas, valida y pule)"
+              aria-pressed="true"
+            >
+              <span class="text-xs leading-none select-none">🧠</span>
+              <span class="font-medium tracking-tight">Refinamiento</span>
+              <span id="refinement-indicator" class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+            </button>
+
+            <!-- 4. ATTACH DOCUMENT BUTTON (Herramienta doc_reader) -->
+            <label
+              for="file-upload-input"
+              id="attach-file-btn"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--border-subtle)]/70 text-[var(--text-secondary)] hover:text-[var(--text-primary)] shadow-2xs transition-all cursor-pointer select-none group"
+              title="Adjuntar documento (.pdf, .txt, .md, .csv, .json, código) para lectura y análisis"
+            >
+              <svg class="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[var(--text-primary)] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              <span class="font-medium tracking-tight hidden sm:inline">Adjuntar</span>
+              <input
+                type="file"
+                id="file-upload-input"
+                class="hidden"
+                accept=".pdf,.txt,.md,.markdown,.json,.csv,.js,.ts,.py,.html,.css,.xml"
+                multiple
+              />
+            </label>
           </div>
 
           <!-- Right: Keyboard hints & Send/Stop Button -->
@@ -174,6 +211,17 @@ const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
       <button
         type="button"
         class="prompt-suggestion-btn p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]/50 transition-all cursor-pointer text-xs sm:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] shadow-2xs group flex flex-col gap-0.5"
+        data-prompt="¿Cuánto es sqrt(65536) multiplicado por el 15% de 800 y qué fecha y hora tenemos hoy?"
+      >
+        <span class="font-medium text-[var(--text-primary)] flex items-center gap-1.5">
+          <span>🛠️</span> Probar herramientas matemáticas y reloj
+        </span>
+        <span class="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]">Cálculo exacto determinista sin alucinaciones</span>
+      </button>
+
+      <button
+        type="button"
+        class="prompt-suggestion-btn p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]/50 transition-all cursor-pointer text-xs sm:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] shadow-2xs group flex flex-col gap-0.5"
         data-prompt="¿Cómo funciona la ejecución de modelos de IA locales dentro del navegador con WebGPU?"
       >
         <span class="font-medium text-[var(--text-primary)] flex items-center gap-1.5">
@@ -202,17 +250,6 @@ const showPopoverPreview = Astro.url.searchParams.get('popover') === '1'
           <span>⚡</span> Optimizar rendimiento web
         </span>
         <span class="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]">Estrategias clave de velocidad y UX</span>
-      </button>
-
-      <button
-        type="button"
-        class="prompt-suggestion-btn p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]/50 transition-all cursor-pointer text-xs sm:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] shadow-2xs group flex flex-col gap-0.5"
-        data-prompt="Ayúdame a redactar un correo formal de seguimiento para una propuesta de proyecto."
-      >
-        <span class="font-medium text-[var(--text-primary)] flex items-center gap-1.5">
-          <span>📝</span> Redactar correo profesional
-        </span>
-        <span class="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]">Seguimiento claro y cordial</span>
       </button>
     </div>
   </div>

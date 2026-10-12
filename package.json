@@ -19,6 +19,7 @@
     "@vercel/oidc": "^4.0.0",
     "astro": "^7.3.8",
     "comark": "^0.7.0",
+    "pdfjs-dist": "^6.4.299",
     "shiki": "^4.5.0",
     "tailwind-scrollbar": "^4.0.2",
     "tailwindcss": "^4.3.3",

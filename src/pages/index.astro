@@ -19,6 +19,28 @@ const demoMessages: Message[] = isDemo
       {
         id: 'msg_2',
         role: 'assistant',
+        reasoningSteps: [
+          {
+            step: 'planning',
+            title: 'Planificación de objetivos clave',
+            content: '- Explicar concepto base de debounce vs throttle.\n- Proporcionar implementación TypeScript genérica limpia.\n- Resumir diferencias críticas en tabla Markdown.',
+          },
+          {
+            step: 'draft',
+            title: 'Borrador de respuesta estructurada',
+            content: 'Generando explicación técnica y snippet tipado.',
+          },
+          {
+            step: 'validation',
+            title: 'Validación de código y formato',
+            content: 'APROBADO',
+          },
+          {
+            step: 'refinement',
+            title: 'Respuesta pulida y optimizada',
+            content: 'Borrador validado correctamente sin repeticiones.',
+          },
+        ],
         content: `<p>El patrón <strong>debounce</strong> asegura que una función no se ejecute repetidamente hasta que haya transcurrido un tiempo de espera determinado desde la última invocación.</p>
 <h3>Implementación en TypeScript</h3>
 <p>Aquí tienes una implementación robusta con genéricos:</p>
@@ -93,8 +115,9 @@ const demoConversations = isDemo
 
 <script>
   import { initChat, sendMessage, switchModel, getCurrentModelId, checkIfModelIsCached, stopGeneration } from '../scripts/chat/engine'
+  import { runAgenticPipeline, abortPipeline, isTrivialQuery } from '../scripts/chat/pipeline'
   import { renderMarkdown, initMarkdown, createStreamingRenderer } from '../scripts/utils/markdown'
-  import { getSelectedModel, setSelectedModel, getTheme, setTheme } from '../scripts/storage/preferences'
+  import { getSelectedModel, setSelectedModel, getTheme, setTheme, getRefinementMode, setRefinementMode } from '../scripts/storage/preferences'
   import {
     loadConversations,
     saveConversation,
@@ -108,7 +131,7 @@ const demoConversations = isDemo
     groupConversationsByPeriod,
   } from '../scripts/storage/conversations'
   import { getModelById } from '../scripts/config/models'
-  import type { Conversation, Message } from '../scripts/chat/types'
+  import type { Conversation, Message, ReasoningStep } from '../scripts/chat/types'
   import {
     getInstalledSkills,
     getSkillMode,
@@ -125,6 +148,14 @@ const demoConversations = isDemo
   import { matchSkillForPrompt } from '../scripts/skills/matcher'
   import { importSkillFromGitHub, parseSkillMarkdown } from '../scripts/skills/importer'
   import type { Skill, SkillCatalogItem, SkillMode } from '../scripts/skills/types'
+  import {
+    attachDocument,
+    removeDocument,
+    subscribeToDocuments,
+    hasAttachedDocuments,
+    extractTextFromPdf,
+  } from '../scripts/tools'
+  import type { AttachedDocument } from '../scripts/tools/types'
 
   // DOM Elements
   const $loadingOverlay = document.getElementById('loading-overlay')!
@@ -142,6 +173,166 @@ const demoConversations = isDemo
   const $modelStatusDot = document.getElementById('model-status-dot')
   const $modelSelect = document.getElementById('model-select') as HTMLInputElement | HTMLSelectElement | null
   const $themeToggle = document.getElementById('theme-toggle')
+
+  // Tools & Documents
+  const $fileUploadInput = document.getElementById('file-upload-input') as HTMLInputElement | null
+  const $attachedFilesContainer = document.getElementById('attached-files-container')
+
+  // Refinement Mode Controls
+  const $refinementToggleBtn = document.getElementById('refinement-toggle-btn') as HTMLButtonElement | null
+  const $refinementIndicator = document.getElementById('refinement-indicator')
+
+  function updateRefinementUI(enabled: boolean) {
+    if (!$refinementToggleBtn) return
+    $refinementToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false')
+    if (enabled) {
+      $refinementToggleBtn.classList.add(
+        'bg-amber-500/10',
+        'text-amber-600',
+        'dark:text-amber-400',
+        'border-amber-500/30',
+        'hover:bg-amber-500/15'
+      )
+      $refinementToggleBtn.classList.remove(
+        'bg-[var(--bg-primary)]',
+        'text-[var(--text-secondary)]',
+        'border-[var(--border-subtle)]'
+      )
+      $refinementIndicator?.classList.remove('hidden')
+    } else {
+      $refinementToggleBtn.classList.remove(
+        'bg-amber-500/10',
+        'text-amber-600',
+        'dark:text-amber-400',
+        'border-amber-500/30',
+        'hover:bg-amber-500/15'
+      )
+      $refinementToggleBtn.classList.add(
+        'bg-[var(--bg-primary)]',
+        'text-[var(--text-secondary)]',
+        'border-[var(--border-subtle)]'
+      )
+      $refinementIndicator?.classList.add('hidden')
+    }
+  }
+
+  function initRefinementToggle() {
+    const isEnabled = getRefinementMode()
+    updateRefinementUI(isEnabled)
+
+    $refinementToggleBtn?.addEventListener('click', () => {
+      const next = !getRefinementMode()
+      setRefinementMode(next)
+      updateRefinementUI(next)
+    })
+  }
+
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  function getFileBadgeInfo(name: string): { icon: string; tag: string; colorClass: string } {
+    const lower = name.toLowerCase()
+    if (lower.endsWith('.pdf')) {
+      return { icon: '📕', tag: 'PDF', colorClass: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20' }
+    }
+    if (lower.endsWith('.csv')) {
+      return { icon: '📊', tag: 'CSV', colorClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20' }
+    }
+    if (lower.endsWith('.json')) {
+      return { icon: '📦', tag: 'JSON', colorClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20' }
+    }
+    if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
+      return { icon: '📝', tag: 'MD', colorClass: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20' }
+    }
+    if (lower.endsWith('.py') || lower.endsWith('.js') || lower.endsWith('.ts') || lower.endsWith('.html') || lower.endsWith('.css')) {
+      return { icon: '💻', tag: 'CODE', colorClass: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20' }
+    }
+    return { icon: '📄', tag: 'DOC', colorClass: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20' }
+  }
+
+  function renderAttachedFiles(docs: AttachedDocument[]) {
+    if (!$attachedFilesContainer) return
+    if (docs.length === 0) {
+      $attachedFilesContainer.classList.add('hidden')
+      $attachedFilesContainer.innerHTML = ''
+      updateSendButtonState()
+      return
+    }
+
+    $attachedFilesContainer.classList.remove('hidden')
+    $attachedFilesContainer.innerHTML = docs
+      .map(doc => {
+        const badge = getFileBadgeInfo(doc.name)
+        return `
+      <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs ${badge.colorClass} border select-none shadow-2xs">
+        <span class="text-xs">${badge.icon}</span>
+        <span class="font-medium truncate max-w-[130px] sm:max-w-[180px]" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</span>
+        <span class="text-[9px] px-1 py-0.2 rounded font-mono font-semibold uppercase opacity-85">${badge.tag}</span>
+        <span class="text-[10px] opacity-75 font-mono">(${formatBytes(doc.size)})</span>
+        <button
+          type="button"
+          class="remove-doc-btn hover:text-red-500 ml-1 p-0.5 rounded cursor-pointer transition-colors"
+          data-id="${doc.id}"
+          title="Eliminar documento adjunto"
+        >
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    `
+      })
+      .join('')
+
+    $attachedFilesContainer.querySelectorAll('.remove-doc-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation()
+        const id = (btn as HTMLElement).dataset.id
+        if (id) {
+          removeDocument(id)
+        }
+      })
+    })
+
+    updateSendButtonState()
+  }
+
+  function initToolsUI() {
+    subscribeToDocuments(renderAttachedFiles)
+
+    $fileUploadInput?.addEventListener('change', async () => {
+      const files = $fileUploadInput.files
+      if (!files || files.length === 0) return
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        try {
+          let text = ''
+          const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
+          if (isPdf) {
+            const buffer = await file.arrayBuffer()
+            text = await extractTextFromPdf(buffer)
+            if (!text.trim()) {
+              text = `[Documento PDF "${file.name}" cargado (${formatBytes(file.size)}), pero no se detectaron capas de texto digital. Puede contener imágenes o escaneos sin OCR.]`
+            }
+          } else {
+            text = await file.text()
+          }
+          attachDocument(file.name, text, isPdf ? 'application/pdf' : (file.type || 'text/plain'))
+        } catch (err: any) {
+          console.error('Error al leer el archivo adjunto:', err)
+          alert(`No se pudo procesar el archivo "${file.name}": ${err.message || 'Error de lectura'}`)
+        }
+      }
+
+      $fileUploadInput.value = ''
+      updateSendButtonState()
+      $input?.focus()
+    })
+  }
 
   // Redesigned Custom Controls: Model Popover
   const $modelPopoverTrigger = document.getElementById('model-popover-trigger')
@@ -238,6 +429,8 @@ const demoConversations = isDemo
   // Initialize
   async function init() {
     initTheme()
+    initRefinementToggle()
+    initToolsUI()
     initSkills()
     updateSidebarState()
     window.addEventListener('resize', updateSidebarState)
@@ -274,6 +467,28 @@ const demoConversations = isDemo
           {
             id: 'msg_2',
             role: 'assistant',
+            reasoningSteps: [
+              {
+                step: 'planning',
+                title: 'Planificación de objetivos clave',
+                content: '- Explicar concepto base de debounce vs throttle.\n- Proporcionar implementación TypeScript genérica limpia.\n- Resumir diferencias críticas en tabla Markdown.',
+              },
+              {
+                step: 'draft',
+                title: 'Borrador de respuesta estructurada',
+                content: 'Generando explicación técnica y snippet tipado.',
+              },
+              {
+                step: 'validation',
+                title: 'Validación de código y formato',
+                content: 'APROBADO',
+              },
+              {
+                step: 'refinement',
+                title: 'Respuesta pulida y optimizada',
+                content: 'Borrador validado correctamente sin repeticiones.',
+              },
+            ],
             content: `El patrón **debounce** asegura que una función no se ejecute repetidamente hasta que haya transcurrido un tiempo de espera determinado desde la última invocación.
 
 ### Implementación en TypeScript
@@ -526,7 +741,7 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
 
       chatMessages.forEach(msg => {
         if (msg.role === 'system') return
-        addMessageToDOM(msg.content, msg.role as 'user' | 'assistant', msg.skillUsed)
+        addMessageToDOM(msg.content, msg.role as 'user' | 'assistant', msg.skillUsed, msg.reasoningSteps)
       })
     }
 
@@ -535,10 +750,90 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
     scrollToBottom(false)
   }
 
+  function hydrateReasoningMarkdown(container: HTMLElement) {
+    const elements = container.querySelectorAll<HTMLElement>('.step-markdown-content[data-content]')
+    elements.forEach(async el => {
+      const raw = el.dataset.content
+      if (raw) {
+        const decoded = decodeURIComponent(raw)
+        try {
+          const html = await renderMarkdown(decoded)
+          el.innerHTML = html
+          delete el.dataset.content
+        } catch (err) {
+          console.warn('Error al renderizar markdown de razonamiento:', err)
+        }
+      }
+    })
+  }
+
+  function renderReasoningAccordionHtml(steps?: ReasoningStep[]): string {
+    if (!steps || steps.length === 0) return ''
+    const itemsHtml = steps
+      .map(step => {
+        let icon = '📋'
+        let badge = 'PLANIFICACIÓN'
+        if (step.step === 'tools') {
+          icon = '🛠️'
+          badge = 'HERRAMIENTAS'
+        }
+        if (step.step === 'draft') {
+          icon = '📝'
+          badge = 'BORRADOR'
+        }
+        if (step.step === 'validation') {
+          icon = '🔍'
+          badge = 'VALIDACIÓN'
+        }
+        if (step.step === 'refinement') {
+          icon = '✨'
+          badge = 'REFINAMIENTO'
+        }
+        return `
+        <div class="space-y-0.5">
+          <div class="flex items-center justify-between text-[11px] font-medium text-[var(--text-muted)]">
+            <span class="flex items-center gap-1.5 text-[var(--text-secondary)] font-medium">
+              <span class="text-[11px]">${icon}</span>
+              <span>${escapeHtml(step.title)}</span>
+            </span>
+            <span class="text-[9px] font-mono text-[var(--text-muted)] opacity-75 uppercase tracking-wider">${badge}</span>
+          </div>
+          <div class="step-markdown-content reasoning-prose pl-2 border-l border-amber-500/25 select-text" data-content="${encodeURIComponent(step.content)}">
+            <div class="whitespace-pre-wrap">${escapeHtml(step.content)}</div>
+          </div>
+        </div>
+      `
+      })
+      .join('')
+
+    return `
+      <details class="reasoning-accordion group/reason text-xs">
+        <summary class="flex items-center justify-between py-1 cursor-pointer select-none text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
+          <div class="flex items-center gap-1.5">
+            <span class="text-amber-500/80 text-xs">🧠</span>
+            <span class="font-medium text-[11.5px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Proceso de razonamiento y herramientas</span>
+            <span class="text-[9px] px-1.5 py-0.2 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-muted)] font-mono opacity-80">${steps.length} fases</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-[var(--text-muted)] opacity-70">
+            <svg class="w-3 h-3 group-open/reason:rotate-180 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </summary>
+        <div class="w-full border-t border-[var(--border-subtle)]/60 my-1"></div>
+        <div class="py-0.5 space-y-2">
+          ${itemsHtml}
+        </div>
+      </details>
+      <hr class="border-t border-[var(--border-subtle)]/60 my-3" />
+    `
+  }
+
   function addMessageToDOM(
     content: string,
     role: 'user' | 'assistant',
-    skillUsed?: { id: string; name: string; icon?: string } | null
+    skillUsed?: { id: string; name: string; icon?: string } | null,
+    reasoningSteps?: ReasoningStep[]
   ) {
     $emptyState.classList.add('hidden')
     $chatContainer?.classList.remove('is-empty')
@@ -568,6 +863,49 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       li.innerHTML = `
         <div class="assistant-wrapper w-full">
           ${skillBadgeHtml}
+          <div class="pipeline-live-tracker hidden text-xs transition-opacity duration-300">
+            <div class="flex items-center justify-between py-1 select-none">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="text-amber-500/80 text-xs animate-pulse">🧠</span>
+                <span class="font-medium text-[11.5px] text-[var(--text-muted)]">Pensamiento</span>
+                <span class="live-step-badge px-1.5 py-0.2 rounded-full text-[9px] font-mono font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  1/3 PLANIFICAR
+                </span>
+                <span class="live-step-label text-[11px] text-[var(--text-muted)] opacity-75 truncate hidden sm:inline">
+                  Iniciando análisis...
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <span class="text-[10px] font-mono text-amber-600/80 dark:text-amber-400/80 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  Streaming
+                </span>
+                <button
+                  type="button"
+                  class="toggle-thought-btn text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded transition-colors cursor-pointer"
+                  title="Ocultar / Mostrar pensamiento"
+                >
+                  <svg class="w-3 h-3 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Línea divisora -->
+            <div class="w-full border-t border-[var(--border-subtle)]/60 my-1"></div>
+
+            <!-- Contenido con Markdown (compacto, line-height ajustado y opacidad sutil) -->
+            <div class="live-thought-body py-0.5 reasoning-prose">
+              <div class="live-thought-content"></div>
+            </div>
+
+            <!-- Separador con el output final -->
+            <hr class="border-t border-[var(--border-subtle)]/60 my-3" />
+          </div>
+          <div class="reasoning-container">
+            ${renderReasoningAccordionHtml(reasoningSteps)}
+          </div>
           <div class="message-content prose max-w-none text-[var(--text-primary)] text-[15px] sm:text-[16px] leading-[1.68]"></div>
           <div class="message-actions flex items-center gap-1 mt-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
@@ -588,6 +926,90 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       `
 
       const $content = li.querySelector('.message-content') as HTMLElement
+      const $liveTracker = li.querySelector('.pipeline-live-tracker') as HTMLElement | null
+      const $liveStepBadge = li.querySelector('.live-step-badge') as HTMLElement | null
+      const $liveStepLabel = li.querySelector('.live-step-label') as HTMLElement | null
+      const $thoughtBody = li.querySelector('.live-thought-body') as HTMLElement | null
+      const $thoughtContent = li.querySelector('.live-thought-content') as HTMLElement | null
+      const $reasoningContainer = li.querySelector('.reasoning-container') as HTMLElement | null
+      const $toggleThoughtBtn = li.querySelector('.toggle-thought-btn') as HTMLButtonElement | null
+
+      let currentStepKey = ''
+      let accumulatedThoughtMarkdown = ''
+      let thoughtStreamer: ReturnType<typeof createStreamingRenderer> | null = null
+
+      if ($thoughtContent) {
+        thoughtStreamer = createStreamingRenderer(html => {
+          $thoughtContent.innerHTML = html
+          if (!userScrolledUp) {
+            scrollToBottom(false)
+          }
+        })
+      }
+
+      $toggleThoughtBtn?.addEventListener('click', () => {
+        if ($thoughtBody) {
+          const isCollapsed = $thoughtBody.classList.toggle('hidden')
+          $toggleThoughtBtn.querySelector('svg')?.classList.toggle('rotate-180', isCollapsed)
+        }
+      })
+
+      ;($content as any).setLiveStep = (step: string, label: string) => {
+        if ($liveTracker) {
+          $liveTracker.classList.remove('hidden')
+        }
+        if ($liveStepBadge) {
+          const stepBadges: Record<string, string> = {
+            tools: 'HERRAMIENTAS',
+            planning: 'PLANIFICACIÓN',
+            draft: 'BORRADOR',
+            validation: 'VALIDACIÓN',
+            refinement: 'REFINAMIENTO',
+          }
+          $liveStepBadge.textContent = stepBadges[step] || step.toUpperCase()
+        }
+        if ($liveStepLabel) {
+          $liveStepLabel.textContent = label
+        }
+        if ($thoughtContent && currentStepKey !== step) {
+          currentStepKey = step
+          const headers: Record<string, string> = {
+            planning: '#### 📋 Planificación de puntos clave\n\n',
+            tools: '\n\n#### 🛠️ Herramientas y Validación Grounding\n\n',
+            draft: '\n\n#### 📝 Borrador preliminar\n\n',
+            validation: '\n\n#### 🔍 Validación y control de calidad\n\n',
+            refinement: '\n\n#### ✨ Refinamiento final\n\n',
+          }
+          accumulatedThoughtMarkdown += headers[step] || `\n\n#### ${step.toUpperCase()}\n\n`
+          thoughtStreamer?.push(accumulatedThoughtMarkdown)
+        }
+      }
+
+      ;($content as any).appendLiveThought = (_step: string, delta: string, _accumulated: string) => {
+        if (delta && thoughtStreamer) {
+          accumulatedThoughtMarkdown += delta
+          thoughtStreamer.push(accumulatedThoughtMarkdown)
+        }
+      }
+
+      ;($content as any).finishReasoning = async (steps: ReasoningStep[]) => {
+        if (thoughtStreamer && accumulatedThoughtMarkdown) {
+          await thoughtStreamer.finish(accumulatedThoughtMarkdown)
+        }
+        if ($liveTracker) {
+          $liveTracker.classList.add('opacity-0')
+          setTimeout(() => {
+            $liveTracker.classList.add('hidden')
+            $liveTracker.classList.remove('opacity-0')
+          }, 300)
+        }
+        if ($reasoningContainer && steps && steps.length > 0) {
+          $reasoningContainer.innerHTML = renderReasoningAccordionHtml(steps)
+          hydrateReasoningMarkdown($reasoningContainer)
+        }
+      }
+
+      hydrateReasoningMarkdown(li)
 
       if (content) {
         renderMarkdown(content).then(rendered => {
@@ -739,8 +1161,9 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
   function updateSendButtonState() {
     if (!$sendBtn) return
     const text = $input ? $input.value.trim() : ''
+    const generating = typeof isGenerating !== 'undefined' ? isGenerating : false
 
-    if (isGenerating) {
+    if (generating) {
       $sendBtn.disabled = false
       $sendBtn.className = 'w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-xs hover:opacity-90 shrink-0'
       $sendBtn.title = 'Detener respuesta'
@@ -751,7 +1174,7 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       $stopIcon?.classList.add('hidden')
       $sendBtn.title = 'Enviar mensaje'
 
-      if (text.length > 0 && getCurrentModelId()) {
+      if ((text.length > 0 || hasAttachedDocuments()) && getCurrentModelId()) {
         $sendBtn.disabled = false
         $sendBtn.className = 'w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-xs hover:opacity-90 shrink-0'
       } else {
@@ -772,7 +1195,7 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         if (isGenerating) return
-        if ($input.value.trim().length > 0 && !$sendBtn.disabled) {
+        if (($input.value.trim().length > 0 || hasAttachedDocuments()) && !$sendBtn.disabled) {
           $form.requestSubmit()
         }
       }
@@ -783,6 +1206,7 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
   $sendBtn?.addEventListener('click', e => {
     if (isGenerating) {
       e.preventDefault()
+      abortPipeline()
       stopGeneration()
       isGenerating = false
       updateSendButtonState()
@@ -804,7 +1228,10 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
       return
     }
 
-    const messageText = $input.value.trim()
+    let messageText = $input.value.trim()
+    if (!messageText && hasAttachedDocuments()) {
+      messageText = "Analiza y resume los datos clave del documento adjunto."
+    }
     if (!messageText) return
 
     $input.value = ''
@@ -849,7 +1276,11 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
     let streamer: ReturnType<typeof createStreamingRenderer> | null = null
     try {
       // Create placeholder for assistant message
-      const $assistantContent = addMessageToDOM('', 'assistant', skillInfo) as HTMLElement
+      const $assistantContent = addMessageToDOM('', 'assistant', skillInfo) as HTMLElement & {
+        setLiveStep?: (step: string, label: string) => void
+        appendLiveThought?: (step: string, delta: string, accumulated: string) => void
+        finishReasoning?: (steps: ReasoningStep[]) => void
+      }
       $typingIndicator.classList.add('hidden')
 
       streamer = createStreamingRenderer(html => {
@@ -859,23 +1290,60 @@ Todo este procesamiento y renderizado se ejecuta **100% en local** en tu equipo.
         }
       })
 
-      // Send message and stream response with active skill instructions
-      const response = await sendMessage(
-        chatMessages,
-        text => {
-          streamer?.push(text)
-        },
-        effectiveSkill
-      )
+      const shouldUsePipeline = (getRefinementMode() && !isTrivialQuery(messageText)) || hasAttachedDocuments()
+      let response = ''
+      let reasoningSteps: ReasoningStep[] | undefined
+
+      if (shouldUsePipeline) {
+        const initialStep = hasAttachedDocuments() ? 'tools' : 'planning'
+        const initialLabel = hasAttachedDocuments()
+          ? 'Leyendo y analizando documentos adjuntos...'
+          : 'Iniciando análisis y planificación...'
+        $assistantContent.setLiveStep?.(initialStep, initialLabel)
+        const pipelineResult = await runAgenticPipeline(
+          messageText,
+          chatMessages,
+          {
+            onStepChange: (step, label) => {
+              $assistantContent.setLiveStep?.(step, label)
+              if (!userScrolledUp) {
+                scrollToBottom(false)
+              }
+            },
+            onStepThought: (step, delta, accumulated) => {
+              $assistantContent.appendLiveThought?.(step, delta, accumulated)
+              if (!userScrolledUp) {
+                scrollToBottom(false)
+              }
+            },
+            onChunk: text => {
+              streamer?.push(text)
+            },
+          },
+          effectiveSkill
+        )
+        response = pipelineResult.finalResponse || pipelineResult.content || ''
+        reasoningSteps = pipelineResult.reasoningSteps
+        $assistantContent.finishReasoning?.(reasoningSteps)
+      } else {
+        response = await sendMessage(
+          chatMessages,
+          text => {
+            streamer?.push(text)
+          },
+          effectiveSkill
+        )
+      }
 
       await streamer.finish(response)
 
-      // Save assistant message with skill metadata
+      // Save assistant message with skill metadata and reasoning steps
       const assistantMessage = addMessageToConversation(
         currentConversation!,
         'assistant',
         response,
-        skillInfo
+        skillInfo,
+        reasoningSteps
       )
       chatMessages.push(assistantMessage)
       saveConversation(currentConversation!)
